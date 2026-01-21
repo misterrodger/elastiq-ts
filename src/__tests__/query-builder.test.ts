@@ -66,6 +66,25 @@ describe('QueryBuilder', () => {
             `);
     });
 
+    it('should build a range query', () => {
+      const result = query<TestIndex>()
+        .range('price', { gt: 1, lt: 100 })
+        .build();
+
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "query": {
+            "range": {
+              "price": {
+                "gt": 1,
+                "lt": 100,
+              },
+            },
+          },
+        }
+      `);
+    });
+
     // it.skip('should build an exists query', () => {
     //   // const result = query<TestIndex>().exists('title').build();
 
@@ -332,7 +351,7 @@ describe('QueryBuilder', () => {
           `);
     });
 
-    it('should build a query with bool.minimumShouldMatch', () => {
+    it('should build a bool with minimumShouldMatch', () => {
       const result = query<TestIndex>()
         .bool()
         .must((q) => q.match('title', 'test title'))
@@ -361,6 +380,32 @@ describe('QueryBuilder', () => {
               },
             }
           `);
+    });
+
+    it('should build a bool with range', () => {
+      const result = query<TestIndex>()
+        .bool()
+        .must((q) => q.range('price', { gt: 1, lt: 100 }))
+        .build();
+
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "query": {
+            "bool": {
+              "must": [
+                {
+                  "range": {
+                    "price": {
+                      "gt": 1,
+                      "lt": 100,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        }
+      `);
     });
   });
 });
