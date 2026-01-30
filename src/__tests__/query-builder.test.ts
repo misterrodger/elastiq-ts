@@ -663,4 +663,568 @@ describe('QueryBuilder', () => {
       `);
     });
   });
+
+  describe('TBC Features', () => {
+    describe('Enhanced match with options', () => {
+      it('should build match with operator option', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test type', { operator: 'and' })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": {
+                  "operator": "and",
+                  "query": "test type",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match with fuzziness option', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test', { fuzziness: 'AUTO' })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": {
+                  "fuzziness": "AUTO",
+                  "query": "test",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match with boost option', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test', { boost: 2.0 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": {
+                  "boost": 2,
+                  "query": "test",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match with multiple options', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test', {
+            operator: 'and',
+            fuzziness: 'AUTO',
+            boost: 2.0,
+            zero_terms_query: 'all'
+          })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": {
+                  "boost": 2,
+                  "fuzziness": "AUTO",
+                  "operator": "and",
+                  "query": "test",
+                  "zero_terms_query": "all",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match without options (backwards compatible)', () => {
+        const result = query<TestIndex>().match('type', 'test').build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match in bool query with options', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) => q.match('type', 'test', { operator: 'and', boost: 2 }))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match": {
+                      "type": {
+                        "boost": 2,
+                        "operator": "and",
+                        "query": "test",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+    });
+
+    describe('Enhanced multi_match with options', () => {
+      it('should build multi_match with type option', () => {
+        const result = query<TestIndex>()
+          .multiMatch(['type', 'name'], 'test', { type: 'best_fields' })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "multi_match": {
+                "fields": [
+                  "type",
+                  "name",
+                ],
+                "query": "test",
+                "type": "best_fields",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build multi_match with tie_breaker option', () => {
+        const result = query<TestIndex>()
+          .multiMatch(['type', 'name'], 'test', {
+            type: 'best_fields',
+            tie_breaker: 0.3
+          })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "multi_match": {
+                "fields": [
+                  "type",
+                  "name",
+                ],
+                "query": "test",
+                "tie_breaker": 0.3,
+                "type": "best_fields",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build multi_match with operator and boost', () => {
+        const result = query<TestIndex>()
+          .multiMatch(['type', 'name'], 'test', {
+            operator: 'and',
+            boost: 1.5
+          })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "multi_match": {
+                "boost": 1.5,
+                "fields": [
+                  "type",
+                  "name",
+                ],
+                "operator": "and",
+                "query": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build multi_match without options (backwards compatible)', () => {
+        const result = query<TestIndex>()
+          .multiMatch(['type', 'name'], 'test')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "multi_match": {
+                "fields": [
+                  "type",
+                  "name",
+                ],
+                "query": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build multi_match in bool query with options', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) =>
+            q.multiMatch(['type', 'name'], 'test', {
+              type: 'cross_fields',
+              operator: 'and'
+            })
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "multi_match": {
+                      "fields": [
+                        "type",
+                        "name",
+                      ],
+                      "operator": "and",
+                      "query": "test",
+                      "type": "cross_fields",
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+    });
+
+    describe('Fuzzy query', () => {
+      it('should build a fuzzy query at root level', () => {
+        const result = query<TestIndex>().fuzzy('type', 'tst').build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "fuzzy": {
+                "type": {
+                  "value": "tst",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a fuzzy query with fuzziness option', () => {
+        const result = query<TestIndex>()
+          .fuzzy('type', 'tst', { fuzziness: 'AUTO' })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "fuzzy": {
+                "type": {
+                  "fuzziness": "AUTO",
+                  "value": "tst",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a fuzzy query with numeric fuzziness', () => {
+        const result = query<TestIndex>()
+          .fuzzy('type', 'test', { fuzziness: 2 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "fuzzy": {
+                "type": {
+                  "fuzziness": 2,
+                  "value": "test",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a fuzzy query with boost option', () => {
+        const result = query<TestIndex>()
+          .fuzzy('type', 'test', { boost: 1.5 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "fuzzy": {
+                "type": {
+                  "boost": 1.5,
+                  "value": "test",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a fuzzy query with multiple options', () => {
+        const result = query<TestIndex>()
+          .fuzzy('type', 'test', { fuzziness: 'AUTO', boost: 2.0 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "fuzzy": {
+                "type": {
+                  "boost": 2,
+                  "fuzziness": "AUTO",
+                  "value": "test",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a fuzzy query in bool context', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) => q.fuzzy('type', 'test', { fuzziness: 'AUTO' }))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "fuzzy": {
+                      "type": {
+                        "fuzziness": "AUTO",
+                        "value": "test",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a fuzzy query in should context', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .should((q) => q.fuzzy('name', 'john', { fuzziness: 1 }))
+          .should((q) => q.match('type', 'test'))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "should": [
+                  {
+                    "fuzzy": {
+                      "name": {
+                        "fuzziness": 1,
+                        "value": "john",
+                      },
+                    },
+                  },
+                  {
+                    "match": {
+                      "type": "test",
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+    });
+
+    describe('Query parameters', () => {
+      it('should add timeout parameter', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .timeout('5s')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+            "timeout": "5s",
+          }
+        `);
+      });
+
+      it('should add track_scores parameter', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .filter((q) => q.term('type', 'test'))
+          .trackScores(true)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "type": "test",
+                    },
+                  },
+                ],
+              },
+            },
+            "track_scores": true,
+          }
+        `);
+      });
+
+      it('should add explain parameter', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .explain(true)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "explain": true,
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add min_score parameter', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .minScore(0.5)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "min_score": 0.5,
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add version parameter', () => {
+        const result = query<TestIndex>()
+          .term('type', 'test')
+          .version(true)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "term": {
+                "type": "test",
+              },
+            },
+            "version": true,
+          }
+        `);
+      });
+
+      it('should add seq_no_primary_term parameter', () => {
+        const result = query<TestIndex>()
+          .term('type', 'test')
+          .seqNoPrimaryTerm(true)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "term": {
+                "type": "test",
+              },
+            },
+            "seq_no_primary_term": true,
+          }
+        `);
+      });
+
+      it('should support multiple query parameters together', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test', { operator: 'and', boost: 2 })
+          .timeout('10s')
+          .trackScores(true)
+          .explain(true)
+          .minScore(1.0)
+          .from(0)
+          .size(20)
+          .sort('price', 'asc')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "explain": true,
+            "from": 0,
+            "min_score": 1,
+            "query": {
+              "match": {
+                "type": {
+                  "boost": 2,
+                  "operator": "and",
+                  "query": "test",
+                },
+              },
+            },
+            "size": 20,
+            "sort": [
+              {
+                "price": "asc",
+              },
+            ],
+            "timeout": "10s",
+            "track_scores": true,
+          }
+        `);
+      });
+    });
+  });
 });

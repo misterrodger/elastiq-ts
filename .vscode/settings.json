@@ -1,5 +1,7 @@
 {
   "cSpell.words": [
-    "elastiq"
+    "elastiq",
+    "gofmt",
+    "golangci"
   ]
 }

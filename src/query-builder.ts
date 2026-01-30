@@ -2,15 +2,31 @@ import { QueryState, QueryBuilder, ClauseBuilder } from './types';
 
 const createClauseBuilder = <T>(): ClauseBuilder<T> => ({
   matchAll: () => ({ match_all: {} }),
-  match: (field, value) => ({ match: { [field]: value } }),
-  multiMatch: (fields, query) => ({ multi_match: { fields, query } }),
+  match: (field, value, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return { match: { [field]: value } };
+    }
+    return { match: { [field]: { query: value, ...options } } };
+  },
+  multiMatch: (fields, query, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return { multi_match: { fields, query } };
+    }
+    return { multi_match: { fields, query, ...options } };
+  },
   matchPhrase: (field, query) => ({ match_phrase: { [field]: query } }),
   term: (field, value) => ({ term: { [field]: value } }),
   terms: (field, value) => ({ terms: { [field]: value } }),
   range: (field, conditions) => ({ range: { [field]: conditions } }),
   exists: (field) => ({ exists: { field } }),
   prefix: (field, value) => ({ prefix: { [field]: value } }),
-  wildcard: (field, value) => ({ wildcard: { [field]: value } })
+  wildcard: (field, value) => ({ wildcard: { [field]: value } }),
+  fuzzy: (field, value, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return { fuzzy: { [field]: { value } } };
+    }
+    return { fuzzy: { [field]: { value, ...options } } };
+  }
   // TODO: when conditional
 });
 
@@ -65,13 +81,27 @@ export const createQueryBuilder = <T>(
   },
 
   matchAll: () => createQueryBuilder<T>({ ...state, query: { match_all: {} } }),
-  match: (field, value) =>
-    createQueryBuilder<T>({ ...state, query: { match: { [field]: value } } }),
-  multiMatch: (fields, query) =>
-    createQueryBuilder<T>({
+  match: (field, value, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return createQueryBuilder<T>({ ...state, query: { match: { [field]: value } } });
+    }
+    return createQueryBuilder<T>({
       ...state,
-      query: { multi_match: { fields, query } }
-    }),
+      query: { match: { [field]: { query: value, ...options } } }
+    });
+  },
+  multiMatch: (fields, query, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return createQueryBuilder<T>({
+        ...state,
+        query: { multi_match: { fields, query } }
+      });
+    }
+    return createQueryBuilder<T>({
+      ...state,
+      query: { multi_match: { fields, query, ...options } }
+    });
+  },
   term: (field, value) =>
     createQueryBuilder<T>({ ...state, query: { term: { [field]: value } } }),
   matchPhrase: (field, value) =>
@@ -90,6 +120,18 @@ export const createQueryBuilder = <T>(
       ...state,
       query: { wildcard: { [field]: value } }
     }),
+  fuzzy: (field, value, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return createQueryBuilder<T>({
+        ...state,
+        query: { fuzzy: { [field]: { value } } }
+      });
+    }
+    return createQueryBuilder<T>({
+      ...state,
+      query: { fuzzy: { [field]: { value, ...options } } }
+    });
+  },
 
   // TODO: when conditional
 
@@ -113,6 +155,15 @@ export const createQueryBuilder = <T>(
   to: (to) => createQueryBuilder({ ...state, to }),
   size: (size) => createQueryBuilder({ ...state, size }),
   _source: (_source) => createQueryBuilder({ ...state, _source }),
+
+  // Query parameters
+  timeout: (timeout) => createQueryBuilder({ ...state, timeout }),
+  trackScores: (track_scores) => createQueryBuilder({ ...state, track_scores }),
+  explain: (explain) => createQueryBuilder({ ...state, explain }),
+  minScore: (min_score) => createQueryBuilder({ ...state, min_score }),
+  version: (version) => createQueryBuilder({ ...state, version }),
+  seqNoPrimaryTerm: (seq_no_primary_term) =>
+    createQueryBuilder({ ...state, seq_no_primary_term }),
 
   build: () => state
 });
