@@ -3,6 +3,7 @@
     "elastiq",
     "gofmt",
     "golangci",
-    "laptpo"
+    "laptpo",
+    "misterrodger"
   ]
 }

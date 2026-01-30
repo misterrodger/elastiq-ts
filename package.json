@@ -20,7 +20,7 @@
     "type-check": "tsc --noEmit"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=20.0.0"
   },
   "repository": {
     "type": "git",

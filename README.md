@@ -1,5 +1,7 @@
 # elastiq
 
+> **⚠️ Pre-Beta Status**: elastiq is still in active development. APIs may change before first stable release.
+
 [![npm version](https://img.shields.io/npm/v/elastiq.svg)](https://www.npmjs.com/package/elastiq)
 [![Build Status](https://github.com/misterrodger/elastiq/actions/workflows/ci.yml/badge.svg)](https://github.com/misterrodger/elastiq/actions)
 [![Coverage Status](https://img.shields.io/badge/coverage-80%25-brightgreen)](https://github.com/misterrodger/elastiq)
@@ -17,7 +19,7 @@ elastiq simplifies building Elasticsearch queries in TypeScript. Write type-chec
 - 🧪 **Well-Tested**: 143+ passing tests with comprehensive coverage
 - 📦 **Lightweight**: ~15KB uncompressed, no external dependencies
 - 🎓 **Great DX**: Excellent IntelliSense and error messages
-- 🔄 **V1 Complete**: Core query features ready for production
+- 🚀 **Ready to Use**: Core query features working and tested
 
 ## Installation
 
@@ -25,7 +27,7 @@ elastiq simplifies building Elasticsearch queries in TypeScript. Write type-chec
 npm install elastiq@latest
 ```
 
-Requires Node.js 16+
+Requires Node.js 20+
 
 ## Quick Start
 
@@ -70,7 +72,7 @@ const response = await client.search({ index: 'products', ...q });
 - `ids(values)` - Match by document IDs
 - `matchAll()` - Match all documents
 
-#### Geo Queries (V1.1+)
+#### Geo Queries
 
 - `geoDistance(field, center, options)` - Distance-based search
 - `geoBoundingBox(field, options)` - Bounding box search
@@ -135,7 +137,7 @@ query<Product>()
   .build();
 ```
 
-### Aggregations (V1.1+)
+### Aggregations
 
 ```typescript
 import { aggregations } from 'elastiq';
@@ -169,6 +171,8 @@ const metrics = aggregations<Product>()
 
 ## Examples
 
+More examples available in [src/__tests__/examples.test.ts](src/__tests__/examples.test.ts).
+
 ### E-commerce Product Search
 
 ```typescript
@@ -190,6 +194,57 @@ const result = query<Product>()
   .size(20)
   .sort('price', 'asc')
   .build();
+```
+
+Produces:
+
+```json
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "name": {
+              "query": "gaming laptop",
+              "operator": "and",
+              "boost": 2
+            }
+          }
+        }
+      ],
+      "should": [
+        {
+          "fuzzy": {
+            "description": {
+              "value": "gaming laptop",
+              "fuzziness": "AUTO"
+            }
+          }
+        }
+      ],
+      "filter": [
+        { "term": { "category": "electronics" } },
+        {
+          "range": {
+            "price": { "gte": 800, "lte": 2000 }
+          }
+        }
+      ],
+      "minimum_should_match": 1
+    }
+  },
+  "highlight": {
+    "fields": {
+      "name": {},
+      "description": {}
+    }
+  },
+  "timeout": "5s",
+  "from": 0,
+  "size": 20,
+  "sort": [{ "price": "asc" }]
+}
 ```
 
 ### Content Search with Filtering
@@ -257,7 +312,7 @@ const result = query<Restaurant>()
   .match('cuisine', 'italian')
   .geoDistance(
     'location',
-    { lat: 40.7128, lon: -74.006 },  // New York City
+    { lat: 40.7128, lon: -74.006 },  // The Big 🍎
     { distance: '5km' }
   )
   .from(0)
@@ -286,6 +341,9 @@ const q1 = query<User>().match('name', 'John').build();
 
 // ❌ TypeScript error: 'unknown_field' is not a valid field
 const q2 = query<User>().match('unknown_field', 'value').build();
+
+// ❌ TypeScript error: age is number, not string
+const q3 = query<User>().match('age', 'should be a number').build();
 ```
 
 ## Testing
@@ -308,8 +366,8 @@ All queries are tested against the Elasticsearch DSL specification with 143+ pas
 
 ## Version Support
 
-- **Node.js**: 16.0.0 or higher
-- **Elasticsearch**: 7.0+ (DSL compatible with 7.x, 8.x)
+- **Node.js**: 20/22
+- **Elasticsearch**: 9.2.4
 
 ## Roadmap
 
@@ -344,7 +402,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ## License
 
-MIT © 2026 Mister Rodger
+MIT © 2026 misterrodger
 
 ## Support
 

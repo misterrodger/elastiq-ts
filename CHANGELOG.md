@@ -57,12 +57,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive inline documentation
 - 143+ passing tests with good coverage
 
-### Fixed
-
-- TypeScript type safety ensured throughout builder chain
-- Proper handling of optional parameters across all query types
-- Snapshot testing for all Elasticsearch DSL output
-
 ### Infrastructure
 
 - ESLint and Prettier setup for code quality

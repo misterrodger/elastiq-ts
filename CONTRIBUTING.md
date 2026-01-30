@@ -62,7 +62,7 @@ npm test
 - **TypeScript**: Use strict mode, avoid `any` except where unavoidable (with comments)
 - **Formatting**: Run `npm run format` to auto-format code
 - **Naming**: Use camelCase for variables/functions, PascalCase for types
-- **Comments**: Add JSDoc comments for public APIs
+- **Comments**: Keep code self-documenting; only add comments for non-obvious logic
 - **Tests**: Write tests for all new features and bug fixes
 
 ### Example Query Implementation
@@ -222,19 +222,27 @@ When adding features:
 
 The maintainers handle releases:
 
-1. Create release branch
-2. Update version in package.json
-3. Update CHANGELOG.md with release notes
-4. Create git tag
-5. Push to npm (via GitHub Actions)
+1. Update version in package.json
+2. Update CHANGELOG.md with release notes
+3. Create git commit with release information
+4. Create git tag matching version
+5. Push to npm (manual or via GitHub Actions)
 
-### Versioning
+### Versioning Strategy
 
-elastiq follows [Semantic Versioning](https://semver.org/):
+elastiq follows [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/):
 
-- **MAJOR**: Breaking changes
-- **MINOR**: New features (backward compatible)
-- **PATCH**: Bug fixes
+- **MAJOR** (`breaking:`): Breaking API changes
+- **MINOR** (`feat:`): New features (backward compatible)
+- **PATCH** (`fix:`, `docs:`, `refactor:`): Bug fixes, documentation, refactoring
+
+All commits should follow the conventional commit format:
+
+- `feat: add KNN query support`
+- `fix: resolve type inference issue`
+- `docs: update README examples`
+- `refactor: simplify query builder logic`
+- `test: add tests for nested aggregations`
 
 ## Questions?
 
