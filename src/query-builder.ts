@@ -26,8 +26,14 @@ const createClauseBuilder = <T>(): ClauseBuilder<T> => ({
       return { fuzzy: { [field]: { value } } };
     }
     return { fuzzy: { [field]: { value, ...options } } };
+  },
+  ids: (values) => ({ ids: { values } }),
+  when: (condition, thenFn, elseFn) => {
+    if (condition) {
+      return thenFn(createClauseBuilder());
+    }
+    return elseFn ? elseFn(createClauseBuilder()) : undefined;
   }
-  // TODO: when conditional
 });
 
 const clauseBuilder = createClauseBuilder();
@@ -133,7 +139,32 @@ export const createQueryBuilder = <T>(
     });
   },
 
-  // TODO: when conditional
+  ids: (values) =>
+    createQueryBuilder<T>({
+      ...state,
+      query: { ids: { values } }
+    }),
+
+  nested: (path, fn, options) => {
+    const nestedQuery = fn(createClauseBuilder<any>());
+    return createQueryBuilder<T>({
+      ...state,
+      query: {
+        nested: {
+          path,
+          query: nestedQuery,
+          ...(options && Object.keys(options).length > 0 ? options : {})
+        }
+      }
+    });
+  },
+
+  when: (condition, thenFn, elseFn) => {
+    if (condition) {
+      return thenFn(createQueryBuilder<T>(state));
+    }
+    return elseFn ? elseFn(createQueryBuilder<T>(state)) : undefined;
+  },
 
   range: (field, conditions) =>
     createQueryBuilder({ ...state, query: { range: { [field]: conditions } } }),

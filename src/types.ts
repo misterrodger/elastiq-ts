@@ -59,6 +59,12 @@ export type ClauseBuilder<T> = {
   prefix: <K extends keyof T>(field: K, value: string) => any;
   wildcard: <K extends keyof T>(field: K, value: string) => any;
   fuzzy: <K extends keyof T>(field: K, value: string, options?: FuzzyOptions) => any;
+  ids: (values: string[]) => any;
+  when: <R>(
+    condition: any,
+    thenFn: (q: ClauseBuilder<T>) => R,
+    elseFn?: (q: ClauseBuilder<T>) => R
+  ) => R | undefined;
 };
 
 export type QueryBuilder<T> = {
@@ -97,8 +103,18 @@ export type QueryBuilder<T> = {
     value: string,
     options?: FuzzyOptions
   ) => QueryBuilder<T>;
+  ids: (values: string[]) => QueryBuilder<T>;
+  nested: <P extends keyof T>(
+    path: P,
+    fn: (q: ClauseBuilder<any>) => any,
+    options?: { score_mode?: 'avg' | 'sum' | 'min' | 'max' | 'none' }
+  ) => QueryBuilder<T>;
   // Conditionals
-  // when: (condition: any, builder: QueryBuilder<T>) => QueryBuilder<T>;
+  when: <R>(
+    condition: any,
+    thenFn: (q: QueryBuilder<T>) => R,
+    elseFn?: (q: QueryBuilder<T>) => R
+  ) => R | undefined;
   // agg: TBD
   // Meta
   sort: <K extends keyof T>(

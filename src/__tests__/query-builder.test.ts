@@ -1226,5 +1226,524 @@ describe('QueryBuilder', () => {
         `);
       });
     });
+
+    describe('ids query', () => {
+      it('should build an ids query at root level', () => {
+        const result = query<TestIndex>()
+          .ids(['id1', 'id2', 'id3'])
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "ids": {
+                "values": [
+                  "id1",
+                  "id2",
+                  "id3",
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build an ids query with single id', () => {
+        const result = query<TestIndex>()
+          .ids(['single-id'])
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "ids": {
+                "values": [
+                  "single-id",
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build an ids query in bool must context', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) => q.ids(['id1', 'id2']))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "ids": {
+                      "values": [
+                        "id1",
+                        "id2",
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build an ids query in bool filter context', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .filter((q) => q.ids(['id1', 'id2', 'id3']))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "ids": {
+                      "values": [
+                        "id1",
+                        "id2",
+                        "id3",
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should combine ids with other queries', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) => q.ids(['id1', 'id2']))
+          .filter((q) => q.term('type', 'test'))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "type": "test",
+                    },
+                  },
+                ],
+                "must": [
+                  {
+                    "ids": {
+                      "values": [
+                        "id1",
+                        "id2",
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+    });
+
+    describe('nested query', () => {
+      it('should build a nested query with single clause', () => {
+        const result = query<TestIndex>()
+          .nested('type' as any, (q) =>
+            q.match('comments.author', 'john')
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "nested": {
+                "path": "type",
+                "query": {
+                  "match": {
+                    "comments.author": "john",
+                  },
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a nested query with multiple term queries', () => {
+        const result = query<TestIndex>()
+          .nested('name' as any, (q) =>
+            q.term('status', 'approved')
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "nested": {
+                "path": "name",
+                "query": {
+                  "term": {
+                    "status": "approved",
+                  },
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a nested query with score_mode option', () => {
+        const result = query<TestIndex>()
+          .nested(
+            'type' as any,
+            (q) => q.match('comments.author', 'john'),
+            { score_mode: 'sum' }
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "nested": {
+                "path": "type",
+                "query": {
+                  "match": {
+                    "comments.author": "john",
+                  },
+                },
+                "score_mode": "sum",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a nested query with avg score_mode', () => {
+        const result = query<TestIndex>()
+          .nested(
+            'name' as any,
+            (q) => q.term('status', 'approved'),
+            { score_mode: 'avg' }
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "nested": {
+                "path": "name",
+                "query": {
+                  "term": {
+                    "status": "approved",
+                  },
+                },
+                "score_mode": "avg",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build a nested query with min score_mode', () => {
+        const result = query<TestIndex>()
+          .nested(
+            'type' as any,
+            (q) => q.term('status', 'pending'),
+            { score_mode: 'min' }
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "nested": {
+                "path": "type",
+                "query": {
+                  "term": {
+                    "status": "pending",
+                  },
+                },
+                "score_mode": "min",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build nested query with pagination', () => {
+        const result = query<TestIndex>()
+          .nested('type' as any, (q: any) =>
+            q.match('author', 'john')
+          )
+          .from(0)
+          .size(10)
+          .sort('price', 'asc')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "from": 0,
+            "query": {
+              "nested": {
+                "path": "type",
+                "query": {
+                  "match": {
+                    "author": "john",
+                  },
+                },
+              },
+            },
+            "size": 10,
+            "sort": [
+              {
+                "price": "asc",
+              },
+            ],
+          }
+        `);
+      });
+    });
+
+    describe('when() conditional', () => {
+      it('should execute thenFn when condition is truthy', () => {
+        const searchTerm = 'test';
+        const result = query<TestIndex>()
+          .when(
+            searchTerm,
+            (q) => q.match('type', searchTerm)
+          )!
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should not add query when condition is falsy', () => {
+        const searchTerm = undefined;
+        const result = query<TestIndex>()
+          .when(
+            searchTerm,
+            (q) => q.match('type', searchTerm as any)
+          )
+          ?.build();
+
+        expect(result).toMatchInlineSnapshot(`undefined`);
+      });
+
+      it('should execute elseFn when condition is falsy', () => {
+        const searchTerm = undefined;
+        const result = query<TestIndex>()
+          .when(
+            searchTerm,
+            (q) => q.match('type', 'fallback'),
+            (q) => q.matchAll()
+          )!
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match_all": {},
+            },
+          }
+        `);
+      });
+
+      it('should use when in bool must context with truthy condition', () => {
+        const type = 'test';
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) =>
+            q.when(
+              type,
+              (q2) => q2.term('type', type)
+            ) || q.matchAll()
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "term": {
+                      "type": "test",
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should use when in bool filter context', () => {
+        const minPrice = 100;
+        const result = query<TestIndex>()
+          .bool()
+          .filter((q) =>
+            q.when(
+              minPrice,
+              (q2) => q2.range('price', { gte: minPrice })
+            ) || q.matchAll()
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "price": {
+                        "gte": 100,
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should chain multiple when conditions', () => {
+        const searchTerm = 'test';
+        const type = 'test';
+        const minPrice = 500;
+
+        const result = query<TestIndex>()
+          .bool()
+          .must(
+            (q) =>
+              q.when(
+                searchTerm,
+                (q2) => q2.match('name', searchTerm)
+              ) || q.matchAll()
+          )
+          .filter(
+            (q) =>
+              q.when(
+                type,
+                (q2) => q2.term('type', type)
+              ) || q.matchAll()
+          )
+          .filter(
+            (q) =>
+              q.when(
+                minPrice,
+                (q2) => q2.range('price', { gte: minPrice })
+              ) || q.matchAll()
+          )
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "type": "test",
+                    },
+                  },
+                  {
+                    "range": {
+                      "price": {
+                        "gte": 500,
+                      },
+                    },
+                  },
+                ],
+                "must": [
+                  {
+                    "match": {
+                      "name": "test",
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should use when with empty string (falsy)', () => {
+        const searchTerm = '';
+        const result = query<TestIndex>()
+          .when(
+            searchTerm,
+            (q) => q.match('type', searchTerm)
+          )
+          ?.build();
+
+        expect(result).toMatchInlineSnapshot(`undefined`);
+      });
+
+      it('should use when with 0 (falsy)', () => {
+        const minPrice = 0;
+        const result = query<TestIndex>()
+          .when(
+            minPrice,
+            (q) => q.range('price', { gte: minPrice })
+          )
+          ?.build();
+
+        expect(result).toMatchInlineSnapshot(`undefined`);
+      });
+
+      it('should use when with empty array (falsy)', () => {
+        const ids: string[] = [];
+        const result = query<TestIndex>()
+          .when(
+            ids.length > 0,
+            (q) => q.ids(ids)
+          )
+          ?.build();
+
+        expect(result).toMatchInlineSnapshot(`undefined`);
+      });
+
+      it('should use when with non-empty array (truthy)', () => {
+        const ids = ['id1', 'id2'];
+        const result = query<TestIndex>()
+          .when(
+            ids.length > 0,
+            (q) => q.ids(ids)
+          )!
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "ids": {
+                "values": [
+                  "id1",
+                  "id2",
+                ],
+              },
+            },
+          }
+        `);
+      });
+    });
   });
 });
