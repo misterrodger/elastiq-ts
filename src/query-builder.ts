@@ -15,6 +15,12 @@ const createClauseBuilder = <T>(): ClauseBuilder<T> => ({
     return { multi_match: { fields, query, ...options } };
   },
   matchPhrase: (field, query) => ({ match_phrase: { [field]: query } }),
+  matchPhrasePrefix: (field, value, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return { match_phrase_prefix: { [field]: value } };
+    }
+    return { match_phrase_prefix: { [field]: { query: value, ...options } } };
+  },
   term: (field, value) => ({ term: { [field]: value } }),
   terms: (field, value) => ({ terms: { [field]: value } }),
   range: (field, conditions) => ({ range: { [field]: conditions } }),
@@ -115,6 +121,18 @@ export const createQueryBuilder = <T>(
       ...state,
       query: { match_phrase: { [field]: value } }
     }),
+  matchPhrasePrefix: (field, value, options) => {
+    if (!options || Object.keys(options).length === 0) {
+      return createQueryBuilder<T>({
+        ...state,
+        query: { match_phrase_prefix: { [field]: value } }
+      });
+    }
+    return createQueryBuilder<T>({
+      ...state,
+      query: { match_phrase_prefix: { [field]: { query: value, ...options } } }
+    });
+  },
   terms: (field, value) =>
     createQueryBuilder<T>({ ...state, query: { terms: { [field]: value } } }),
   exists: (field) =>
@@ -195,6 +213,24 @@ export const createQueryBuilder = <T>(
   version: (version) => createQueryBuilder({ ...state, version }),
   seqNoPrimaryTerm: (seq_no_primary_term) =>
     createQueryBuilder({ ...state, seq_no_primary_term }),
+
+  trackTotalHits: (track_total_hits) =>
+    createQueryBuilder({ ...state, track_total_hits }),
+
+  highlight: (fields, options) => {
+    const highlightFields: Record<string, any> = {};
+    for (const field of fields) {
+      highlightFields[field as string] = options || {};
+    }
+    return createQueryBuilder({
+      ...state,
+      highlight: {
+        fields: highlightFields,
+        ...(options?.pre_tags && { pre_tags: options.pre_tags }),
+        ...(options?.post_tags && { post_tags: options.post_tags })
+      }
+    });
+  },
 
   build: () => state
 });

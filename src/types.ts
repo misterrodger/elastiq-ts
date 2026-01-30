@@ -25,6 +25,13 @@ export type FuzzyOptions = {
   boost?: number;
 };
 
+export type HighlightOptions = {
+  fragment_size?: number;
+  number_of_fragments?: number;
+  pre_tags?: string[];
+  post_tags?: string[];
+};
+
 export type QueryState<T> = {
   query?: any;
   from?: number;
@@ -38,6 +45,12 @@ export type QueryState<T> = {
   min_score?: number;
   version?: boolean;
   seq_no_primary_term?: boolean;
+  track_total_hits?: boolean | number;
+  highlight?: {
+    fields: Record<string, HighlightOptions>;
+    pre_tags?: string[];
+    post_tags?: string[];
+  };
 };
 
 export type ClauseBuilder<T> = {
@@ -49,6 +62,11 @@ export type ClauseBuilder<T> = {
     options?: MultiMatchOptions
   ) => any;
   matchPhrase: <K extends keyof T>(field: K, value: T[K]) => any;
+  matchPhrasePrefix: <K extends keyof T>(
+    field: K,
+    value: T[K],
+    options?: { max_expansions?: number }
+  ) => any;
   term: <K extends keyof T>(field: K, value: T[K]) => any;
   terms: <K extends keyof T>(field: K, value: T[K]) => any;
   range: <K extends keyof T>(
@@ -87,6 +105,11 @@ export type QueryBuilder<T> = {
     options?: MultiMatchOptions
   ) => QueryBuilder<T>;
   matchPhrase: <K extends keyof T>(field: K, value: T[K]) => QueryBuilder<T>;
+  matchPhrasePrefix: <K extends keyof T>(
+    field: K,
+    value: T[K],
+    options?: { max_expansions?: number }
+  ) => QueryBuilder<T>;
   // queryString TBD
   // Term-level queries
   term: <K extends keyof T>(field: K, value: T[K]) => QueryBuilder<T>;
@@ -131,5 +154,10 @@ export type QueryBuilder<T> = {
   minScore: (score: number) => QueryBuilder<T>;
   version: (version: boolean) => QueryBuilder<T>;
   seqNoPrimaryTerm: (enabled: boolean) => QueryBuilder<T>;
+  trackTotalHits: (value: boolean | number) => QueryBuilder<T>;
+  highlight: (
+    fields: Array<keyof T>,
+    options?: HighlightOptions
+  ) => QueryBuilder<T>;
   build: () => QueryState<T>;
 };

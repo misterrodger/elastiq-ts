@@ -1745,5 +1745,523 @@ describe('QueryBuilder', () => {
         `);
       });
     });
+
+    describe('match_phrase_prefix query', () => {
+      it('should build a match_phrase_prefix query at root level', () => {
+        const result = query<TestIndex>()
+          .matchPhrasePrefix('type', 'test')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match_phrase_prefix": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match_phrase_prefix with max_expansions option', () => {
+        const result = query<TestIndex>()
+          .matchPhrasePrefix('type', 'test', { max_expansions: 10 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match_phrase_prefix": {
+                "type": {
+                  "max_expansions": 10,
+                  "query": "test",
+                },
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match_phrase_prefix in bool must context', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) => q.matchPhrasePrefix('name', 'john'))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match_phrase_prefix": {
+                      "name": "john",
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should build match_phrase_prefix in bool filter context', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .filter((q) => q.matchPhrasePrefix('type', 'test', { max_expansions: 5 }))
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "match_phrase_prefix": {
+                      "type": {
+                        "max_expansions": 5,
+                        "query": "test",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+          }
+        `);
+      });
+
+      it('should use match_phrase_prefix for autocomplete pattern', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) =>
+            q.matchPhrasePrefix('name', 'joh', { max_expansions: 20 })
+          )
+          .from(0)
+          .size(10)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "from": 0,
+            "query": {
+              "bool": {
+                "must": [
+                  {
+                    "match_phrase_prefix": {
+                      "name": {
+                        "max_expansions": 20,
+                        "query": "joh",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+            "size": 10,
+          }
+        `);
+      });
+    });
+
+    describe('track_total_hits parameter', () => {
+      it('should add track_total_hits with true', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .trackTotalHits(true)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+            "track_total_hits": true,
+          }
+        `);
+      });
+
+      it('should add track_total_hits with false', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .trackTotalHits(false)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+            "track_total_hits": false,
+          }
+        `);
+      });
+
+      it('should add track_total_hits with number limit', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .trackTotalHits(10000)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+            "track_total_hits": 10000,
+          }
+        `);
+      });
+
+      it('should combine track_total_hits with pagination', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .from(100)
+          .size(20)
+          .trackTotalHits(true)
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "from": 100,
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+            "size": 20,
+            "track_total_hits": true,
+          }
+        `);
+      });
+    });
+
+    describe('highlighting', () => {
+      it('should add highlight with single field', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .highlight(['type'])
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "highlight": {
+              "fields": {
+                "type": {},
+              },
+            },
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add highlight with multiple fields', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .highlight(['type', 'name', 'price'])
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "highlight": {
+              "fields": {
+                "name": {},
+                "price": {},
+                "type": {},
+              },
+            },
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add highlight with fragment_size option', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .highlight(['type'], { fragment_size: 150 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "highlight": {
+              "fields": {
+                "type": {
+                  "fragment_size": 150,
+                },
+              },
+            },
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add highlight with number_of_fragments option', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .highlight(['name'], { number_of_fragments: 3 })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "highlight": {
+              "fields": {
+                "name": {
+                  "number_of_fragments": 3,
+                },
+              },
+            },
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add highlight with custom pre/post tags', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .highlight(['type'], {
+            pre_tags: ['<em>'],
+            post_tags: ['</em>']
+          })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "highlight": {
+              "fields": {
+                "type": {
+                  "post_tags": [
+                    "</em>",
+                  ],
+                  "pre_tags": [
+                    "<em>",
+                  ],
+                },
+              },
+              "post_tags": [
+                "</em>",
+              ],
+              "pre_tags": [
+                "<em>",
+              ],
+            },
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should add highlight with multiple options', () => {
+        const result = query<TestIndex>()
+          .match('type', 'test')
+          .highlight(['type', 'name'], {
+            fragment_size: 150,
+            number_of_fragments: 2,
+            pre_tags: ['<mark>'],
+            post_tags: ['</mark>']
+          })
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "highlight": {
+              "fields": {
+                "name": {
+                  "fragment_size": 150,
+                  "number_of_fragments": 2,
+                  "post_tags": [
+                    "</mark>",
+                  ],
+                  "pre_tags": [
+                    "<mark>",
+                  ],
+                },
+                "type": {
+                  "fragment_size": 150,
+                  "number_of_fragments": 2,
+                  "post_tags": [
+                    "</mark>",
+                  ],
+                  "pre_tags": [
+                    "<mark>",
+                  ],
+                },
+              },
+              "post_tags": [
+                "</mark>",
+              ],
+              "pre_tags": [
+                "<mark>",
+              ],
+            },
+            "query": {
+              "match": {
+                "type": "test",
+              },
+            },
+          }
+        `);
+      });
+
+      it('should combine highlight with other query features', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) => q.match('type', 'test'))
+          .filter((q) => q.range('price', { gte: 100, lte: 1000 }))
+          .highlight(['type', 'name'], { fragment_size: 200 })
+          .from(0)
+          .size(10)
+          .sort('price', 'asc')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "from": 0,
+            "highlight": {
+              "fields": {
+                "name": {
+                  "fragment_size": 200,
+                },
+                "type": {
+                  "fragment_size": 200,
+                },
+              },
+            },
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "range": {
+                      "price": {
+                        "gte": 100,
+                        "lte": 1000,
+                      },
+                    },
+                  },
+                ],
+                "must": [
+                  {
+                    "match": {
+                      "type": "test",
+                    },
+                  },
+                ],
+              },
+            },
+            "size": 10,
+            "sort": [
+              {
+                "price": "asc",
+              },
+            ],
+          }
+        `);
+      });
+
+      it('should combine all features', () => {
+        const result = query<TestIndex>()
+          .bool()
+          .must((q) =>
+            q.matchPhrasePrefix('name', 'joh', { max_expansions: 20 })
+          )
+          .filter((q) => q.term('type', 'test'))
+          .highlight(['name', 'type'], {
+            fragment_size: 150,
+            pre_tags: ['<em>'],
+            post_tags: ['</em>']
+          })
+          .trackTotalHits(true)
+          .from(0)
+          .size(20)
+          .sort('price', 'asc')
+          .build();
+
+        expect(result).toMatchInlineSnapshot(`
+          {
+            "from": 0,
+            "highlight": {
+              "fields": {
+                "name": {
+                  "fragment_size": 150,
+                  "post_tags": [
+                    "</em>",
+                  ],
+                  "pre_tags": [
+                    "<em>",
+                  ],
+                },
+                "type": {
+                  "fragment_size": 150,
+                  "post_tags": [
+                    "</em>",
+                  ],
+                  "pre_tags": [
+                    "<em>",
+                  ],
+                },
+              },
+              "post_tags": [
+                "</em>",
+              ],
+              "pre_tags": [
+                "<em>",
+              ],
+            },
+            "query": {
+              "bool": {
+                "filter": [
+                  {
+                    "term": {
+                      "type": "test",
+                    },
+                  },
+                ],
+                "must": [
+                  {
+                    "match_phrase_prefix": {
+                      "name": {
+                        "max_expansions": 20,
+                        "query": "joh",
+                      },
+                    },
+                  },
+                ],
+              },
+            },
+            "size": 20,
+            "sort": [
+              {
+                "price": "asc",
+              },
+            ],
+            "track_total_hits": true,
+          }
+        `);
+      });
+    });
   });
 });
