@@ -2955,12 +2955,24 @@ describe('QueryBuilder', () => {
           .size(20)
           .build();
 
-        expect(result.query?.bool?.must).toBeDefined();
-        expect(result.query?.bool?.filter).toBeDefined();
-        expect(result.aggs?.by_category?.terms).toBeDefined();
-        expect(result.aggs?.by_category?.aggs?.avg_price).toBeDefined();
-        expect(result.aggs?.by_category?.aggs?.max_rating).toBeDefined();
-        expect(result.size).toBe(20);
+        expect(result).toMatchObject({
+          query: {
+            bool: {
+              must: [{ match: { title: 'coffee' } }],
+              filter: [{ range: { price: { gte: 10, lte: 50 } } }]
+            }
+          },
+          aggs: {
+            by_category: {
+              terms: { field: 'category', size: 5 },
+              aggs: {
+                avg_price: { avg: { field: 'price' } },
+                max_rating: { max: { field: 'rating' } }
+              }
+            }
+          },
+          size: 20
+        });
       });
 
       it('should allow aggregations without query methods when using query()', () => {
@@ -2968,8 +2980,11 @@ describe('QueryBuilder', () => {
           .aggs((agg) => agg.sum('total_price', 'price'))
           .build();
 
-        // With query() (default), query field is preserved even if undefined
-        expect(result.aggs?.total_price).toBeDefined();
+        expect(result).toMatchObject({
+          aggs: {
+            total_price: { sum: { field: 'price' } }
+          }
+        });
       });
     });
   });
@@ -3302,13 +3317,21 @@ describe('QueryBuilder', () => {
           .size(20)
           .build();
 
-        expect(result.query?.bool?.must).toBeDefined();
-        expect(result.query?.bool?.filter).toBeDefined();
-        expect(result.aggs?.by_category).toBeDefined();
-        expect(result.aggs?.avg_price).toBeDefined();
-        expect(result.aggs?.max_rating).toBeDefined();
-        expect(result.aggs?.min_price).toBeDefined();
-        expect(result.size).toBe(20);
+        expect(result).toMatchObject({
+          query: {
+            bool: {
+              must: [{ match: { title: 'coffee' } }],
+              filter: [{ range: { price: { gte: 5, lte: 20 } } }]
+            }
+          },
+          aggs: {
+            by_category: { terms: { field: 'category', size: 10 } },
+            avg_price: { avg: { field: 'price' } },
+            max_rating: { max: { field: 'rating' } },
+            min_price: { min: { field: 'price' } }
+          },
+          size: 20
+        });
       });
 
       it('should combine geo query with aggregations', () => {
@@ -3325,9 +3348,22 @@ describe('QueryBuilder', () => {
           )
           .build();
 
-        expect(result.query?.geo_distance).toBeDefined();
-        expect(result.aggs?.by_category).toBeDefined();
-        expect(result.aggs?.by_category?.aggs?.avg_rating).toBeDefined();
+        expect(result).toMatchObject({
+          query: {
+            geo_distance: {
+              location: { lat: 40.7128, lon: -74.006 },
+              distance: '5km'
+            }
+          },
+          aggs: {
+            by_category: {
+              terms: { field: 'category' },
+              aggs: {
+                avg_rating: { avg: { field: 'rating' } }
+              }
+            }
+          }
+        });
       });
 
       it('should build query(false) with multiple aggregations and all meta properties', () => {
@@ -3343,13 +3379,17 @@ describe('QueryBuilder', () => {
           .timeout('30s')
           .build();
 
+        expect(result).toMatchObject({
+          aggs: {
+            by_category: { terms: { field: 'category', size: 20 } },
+            over_time: { date_histogram: { field: 'date', interval: 'month' } },
+            price_stats: { stats: { field: 'price' } }
+          },
+          size: 0,
+          from: 0,
+          timeout: '30s'
+        });
         expect(result.query).toBeUndefined();
-        expect(result.aggs?.by_category).toBeDefined();
-        expect(result.aggs?.over_time).toBeDefined();
-        expect(result.aggs?.price_stats).toBeDefined();
-        expect(result.size).toBe(0);
-        expect(result.from).toBe(0);
-        expect(result.timeout).toBe('30s');
       });
 
       it('should build query(false) with deeply nested sub-aggregations', () => {
@@ -3368,17 +3408,24 @@ describe('QueryBuilder', () => {
           .size(0)
           .build();
 
+        expect(result).toMatchObject({
+          aggs: {
+            by_category: {
+              terms: { field: 'category' },
+              aggs: {
+                by_month: {
+                  date_histogram: { field: 'date', interval: 'month' },
+                  aggs: {
+                    avg_price: { avg: { field: 'price' } },
+                    total_sales: { sum: { field: 'price' } }
+                  }
+                }
+              }
+            }
+          },
+          size: 0
+        });
         expect(result.query).toBeUndefined();
-        expect(result.aggs?.by_category?.terms).toBeDefined();
-        expect(
-          result.aggs?.by_category?.aggs?.by_month?.date_histogram
-        ).toBeDefined();
-        expect(
-          result.aggs?.by_category?.aggs?.by_month?.aggs?.avg_price
-        ).toBeDefined();
-        expect(
-          result.aggs?.by_category?.aggs?.by_month?.aggs?.total_sales
-        ).toBeDefined();
       });
 
       it('should combine aggregations with highlight', () => {
@@ -3391,10 +3438,18 @@ describe('QueryBuilder', () => {
           })
           .build();
 
-        expect(result.query?.match).toBeDefined();
-        expect(result.aggs?.by_category).toBeDefined();
-        expect(result.highlight?.fields?.title).toBeDefined();
-        expect(result.highlight?.fields?.description).toBeDefined();
+        expect(result).toMatchObject({
+          query: { match: { title: 'coffee shop' } },
+          aggs: { by_category: { terms: { field: 'category' } } },
+          highlight: {
+            fields: {
+              title: { pre_tags: ['<em>'], post_tags: ['</em>'] },
+              description: { pre_tags: ['<em>'], post_tags: ['</em>'] }
+            },
+            pre_tags: ['<em>'],
+            post_tags: ['</em>']
+          }
+        });
       });
 
       it('should combine aggregations with sort', () => {
@@ -3405,10 +3460,12 @@ describe('QueryBuilder', () => {
           .size(10)
           .build();
 
-        expect(result.query?.match).toBeDefined();
-        expect(result.aggs?.by_category).toBeDefined();
-        expect(result.sort).toEqual([{ rating: 'desc' }]);
-        expect(result.size).toBe(10);
+        expect(result).toMatchObject({
+          query: { match: { title: 'restaurant' } },
+          aggs: { by_category: { terms: { field: 'category' } } },
+          sort: [{ rating: 'desc' }],
+          size: 10
+        });
       });
 
       it('should combine aggregations with _source selection', () => {
@@ -3418,9 +3475,11 @@ describe('QueryBuilder', () => {
           ._source(['title', 'price', 'category'])
           .build();
 
-        expect(result.query?.term).toBeDefined();
-        expect(result.aggs?.avg_price).toBeDefined();
-        expect(result._source).toEqual(['title', 'price', 'category']);
+        expect(result).toMatchObject({
+          query: { term: { category: 'electronics' } },
+          aggs: { avg_price: { avg: { field: 'price' } } },
+          _source: ['title', 'price', 'category']
+        });
       });
     });
 
@@ -3669,9 +3728,15 @@ describe('QueryBuilder', () => {
             )
             .build();
 
-          expect(result.by_month.date_histogram).toBeDefined();
-          expect(result.by_month.aggs?.monthly_revenue?.sum).toBeDefined();
-          expect(result.by_month.aggs?.avg_rating?.avg).toBeDefined();
+          expect(result).toMatchObject({
+            by_month: {
+              date_histogram: { field: 'date', interval: 'month' },
+              aggs: {
+                monthly_revenue: { sum: { field: 'price' } },
+                avg_rating: { avg: { field: 'rating' } }
+              }
+            }
+          });
         });
 
         it('should add sub-agg to range aggregation', () => {
@@ -3682,8 +3747,17 @@ describe('QueryBuilder', () => {
             .subAgg((sub) => sub.avg('avg_rating', 'rating'))
             .build();
 
-          expect(result.price_ranges.range).toBeDefined();
-          expect(result.price_ranges.aggs?.avg_rating?.avg).toBeDefined();
+          expect(result).toMatchObject({
+            price_ranges: {
+              range: {
+                field: 'price',
+                ranges: [{ to: 50 }, { from: 50, to: 100 }, { from: 100 }]
+              },
+              aggs: {
+                avg_rating: { avg: { field: 'rating' } }
+              }
+            }
+          });
         });
 
         it('should add sub-agg to histogram aggregation', () => {
@@ -3692,10 +3766,14 @@ describe('QueryBuilder', () => {
             .subAgg((sub) => sub.cardinality('unique_categories', 'category'))
             .build();
 
-          expect(result.price_histogram.histogram).toBeDefined();
-          expect(
-            result.price_histogram.aggs?.unique_categories?.cardinality
-          ).toBeDefined();
+          expect(result).toMatchObject({
+            price_histogram: {
+              histogram: { field: 'price', interval: 25 },
+              aggs: {
+                unique_categories: { cardinality: { field: 'category' } }
+              }
+            }
+          });
         });
 
         it('should create multiple sibling sub-aggregations', () => {
@@ -3711,12 +3789,18 @@ describe('QueryBuilder', () => {
             )
             .build();
 
-          const aggs = result.by_category.aggs;
-          expect(aggs?.avg_price).toBeDefined();
-          expect(aggs?.min_price).toBeDefined();
-          expect(aggs?.max_price).toBeDefined();
-          expect(aggs?.total_revenue).toBeDefined();
-          expect(aggs?.price_stats).toBeDefined();
+          expect(result).toMatchObject({
+            by_category: {
+              terms: { field: 'category' },
+              aggs: {
+                avg_price: { avg: { field: 'price' } },
+                min_price: { min: { field: 'price' } },
+                max_price: { max: { field: 'price' } },
+                total_revenue: { sum: { field: 'price' } },
+                price_stats: { stats: { field: 'price' } }
+              }
+            }
+          });
         });
 
         it('should create multiple bucket aggregations at same level', () => {
@@ -3726,9 +3810,11 @@ describe('QueryBuilder', () => {
             .dateHistogram('by_date', 'date', { interval: 'week' })
             .build();
 
-          expect(result.by_category?.terms).toBeDefined();
-          expect(result.by_title?.terms).toBeDefined();
-          expect(result.by_date?.date_histogram).toBeDefined();
+          expect(result).toMatchObject({
+            by_category: { terms: { field: 'category', size: 10 } },
+            by_title: { terms: { field: 'title', size: 5 } },
+            by_date: { date_histogram: { field: 'date', interval: 'week' } }
+          });
         });
       });
     });
@@ -4413,17 +4499,20 @@ describe('QueryBuilder', () => {
           .trackTotalHits(10000)
           .build();
 
-        expect(result.from).toBe(20);
-        expect(result.size).toBe(10);
-        expect(result.sort).toHaveLength(2);
-        expect(result._source).toEqual(['name', 'price']);
-        expect(result.timeout).toBe('10s');
-        expect(result.track_scores).toBe(true);
-        expect(result.explain).toBe(false);
-        expect(result.min_score).toBe(1.5);
-        expect(result.version).toBe(true);
-        expect(result.seq_no_primary_term).toBe(true);
-        expect(result.track_total_hits).toBe(10000);
+        expect(result).toMatchObject({
+          query: { match: { name: 'laptop' } },
+          from: 20,
+          size: 10,
+          sort: [{ price: 'asc' }, { size: 'desc' }],
+          _source: ['name', 'price'],
+          timeout: '10s',
+          track_scores: true,
+          explain: false,
+          min_score: 1.5,
+          version: true,
+          seq_no_primary_term: true,
+          track_total_hits: 10000
+        });
       });
 
       it('should allow overriding meta properties with subsequent calls', () => {
@@ -4480,28 +4569,37 @@ describe('QueryBuilder', () => {
           .trackTotalHits(true)
           .build();
 
-        // Verify query structure
-        expect(result.query?.bool?.must).toHaveLength(1);
-        expect(result.query?.bool?.filter).toHaveLength(3);
-
-        // Verify aggregations
-        expect(result.aggs?.by_category).toBeDefined();
-        expect(result.aggs?.price_ranges).toBeDefined();
-        expect(result.aggs?.avg_price).toBeDefined();
-        expect(result.aggs?.avg_rating).toBeDefined();
-
-        // Verify meta
-        expect(result.highlight?.fields?.title).toBeDefined();
-        expect(result.sort).toEqual([{ rating: 'desc' }]);
-        expect(result._source).toEqual([
-          'title',
-          'price',
-          'rating',
-          'category'
-        ]);
-        expect(result.from).toBe(0);
-        expect(result.size).toBe(20);
-        expect(result.track_total_hits).toBe(true);
+        expect(result).toMatchObject({
+          query: {
+            bool: {
+              must: [
+                { match: { title: { query: searchTerm, operator: 'and', boost: 2 } } }
+              ],
+              filter: [
+                { term: { category } },
+                { range: { price: { gte: minPrice, lte: maxPrice } } },
+                { exists: { field: 'rating' } }
+              ]
+            }
+          },
+          aggs: {
+            by_category: { terms: { field: 'category', size: 20 } },
+            price_ranges: expect.objectContaining({ range: expect.anything() }),
+            avg_price: { avg: { field: 'price' } },
+            avg_rating: { avg: { field: 'rating' } }
+          },
+          highlight: {
+            fields: {
+              title: expect.anything(),
+              description: expect.anything()
+            }
+          },
+          sort: [{ rating: 'desc' }],
+          _source: ['title', 'price', 'rating', 'category'],
+          from: 0,
+          size: 20,
+          track_total_hits: true
+        });
       });
 
       it('should build autocomplete search: matchPhrasePrefix + highlighting + size limit', () => {
@@ -4517,12 +4615,18 @@ describe('QueryBuilder', () => {
           ._source(['name', 'type'])
           .build();
 
-        expect(result.query?.match_phrase_prefix?.name?.query).toBe('gam');
-        expect(result.query?.match_phrase_prefix?.name?.max_expansions).toBe(
-          50
-        );
-        expect(result.highlight?.fields?.name).toBeDefined();
-        expect(result.size).toBe(10);
+        expect(result).toMatchObject({
+          query: {
+            match_phrase_prefix: {
+              name: { query: 'gam', max_expansions: 50 }
+            }
+          },
+          highlight: {
+            fields: { name: expect.anything() }
+          },
+          size: 10,
+          _source: ['name', 'type']
+        });
       });
 
       it('should build analytics dashboard: aggregations only with size=0', () => {
@@ -4548,12 +4652,21 @@ describe('QueryBuilder', () => {
           .timeout('30s')
           .build();
 
+        expect(result).toMatchObject({
+          aggs: {
+            sales_by_day: {
+              date_histogram: expect.objectContaining({ interval: 'day', min_doc_count: 0 }),
+              aggs: {
+                daily_revenue: { sum: { field: 'price' } },
+                avg_order_value: { avg: { field: 'price' } },
+                unique_customers: { cardinality: { field: 'category' } }
+              }
+            }
+          },
+          size: 0,
+          timeout: '30s'
+        });
         expect(result.query).toBeUndefined();
-        expect(result.size).toBe(0);
-        expect(result.aggs?.sales_by_day?.date_histogram).toBeDefined();
-        expect(result.aggs?.sales_by_day?.aggs?.daily_revenue).toBeDefined();
-        expect(result.aggs?.sales_by_day?.aggs?.avg_order_value).toBeDefined();
-        expect(result.aggs?.sales_by_day?.aggs?.unique_customers).toBeDefined();
       });
 
       it('should build geo-based search: location + radius + category filter + rating sort', () => {
@@ -4565,10 +4678,15 @@ describe('QueryBuilder', () => {
           )
           .build();
 
-        // Verify geo query at root
-        expect(result.query?.geo_distance).toBeDefined();
-        expect(result.query?.geo_distance?.distance).toBe('10km');
-        expect(result.query?.geo_distance?.distance_type).toBe('arc');
+        expect(result).toMatchObject({
+          query: {
+            geo_distance: {
+              location: { lat: 40.7128, lon: -74.006 },
+              distance: '10km',
+              distance_type: 'arc'
+            }
+          }
+        });
       });
 
       it('should build time-series query: date range + date histogram + metrics', () => {
@@ -4593,9 +4711,20 @@ describe('QueryBuilder', () => {
           .size(0)
           .build();
 
-        expect(result.aggs?.by_hour?.date_histogram?.interval).toBe('hour');
-        expect(result.aggs?.by_hour?.aggs?.avg_value).toBeDefined();
-        expect(result.aggs?.by_hour?.aggs?.value_percentiles).toBeDefined();
+        expect(result).toMatchObject({
+          aggs: {
+            by_hour: {
+              date_histogram: { interval: 'hour', time_zone: 'UTC', min_doc_count: 0 },
+              aggs: {
+                avg_value: { avg: { field: 'price' } },
+                min_value: { min: { field: 'price' } },
+                max_value: { max: { field: 'price' } },
+                value_percentiles: { percentiles: expect.objectContaining({ percents: [50, 90, 95, 99] }) }
+              }
+            }
+          },
+          size: 0
+        });
       });
 
       it('should build multi-field search: multiMatch with boost + highlighting', () => {
@@ -4616,15 +4745,26 @@ describe('QueryBuilder', () => {
           .size(25)
           .build();
 
-        expect(result.query?.multi_match?.fields).toEqual([
-          'title',
-          'description',
-          'category'
-        ]);
-        expect(result.query?.multi_match?.type).toBe('best_fields');
-        expect(result.query?.multi_match?.tie_breaker).toBe(0.3);
-        expect(result.highlight?.fields?.title).toBeDefined();
-        expect(result.highlight?.fields?.description).toBeDefined();
+        expect(result).toMatchObject({
+          query: {
+            multi_match: {
+              fields: ['title', 'description', 'category'],
+              query: searchQuery,
+              type: 'best_fields',
+              operator: 'or',
+              tie_breaker: 0.3,
+              boost: 1.5
+            }
+          },
+          highlight: {
+            fields: {
+              title: expect.objectContaining({ fragment_size: 200, number_of_fragments: 3 }),
+              description: expect.objectContaining({ fragment_size: 200, number_of_fragments: 3 })
+            }
+          },
+          from: 0,
+          size: 25
+        });
       });
 
       it('should build faceted navigation: bool filters + terms aggregations per facet', () => {
@@ -4645,10 +4785,23 @@ describe('QueryBuilder', () => {
           .from(0)
           .build();
 
-        expect(result.query?.bool?.filter).toHaveLength(2);
-        expect(result.aggs?.categories).toBeDefined();
-        expect(result.aggs?.price_tiers).toBeDefined();
-        expect(result.aggs?.ratings).toBeDefined();
+        expect(result).toMatchObject({
+          query: {
+            bool: {
+              filter: [
+                { term: { category: selectedCategory } },
+                { match: { title: selectedBrand } }
+              ]
+            }
+          },
+          aggs: {
+            categories: { terms: { field: 'category', size: 30 } },
+            price_tiers: { terms: { field: 'price', size: 10 } },
+            ratings: { terms: { field: 'rating', size: 5 } }
+          },
+          size: 24,
+          from: 0
+        });
       });
 
       it('should build conditional search with all optional filters', () => {
@@ -4683,12 +4836,17 @@ describe('QueryBuilder', () => {
           )
           .build();
 
-        // searchTerm is set, so match should be present
-        expect(result.query?.bool?.must?.[0]?.match?.title).toBe('laptop');
-        // category is undefined, so matchAll should be present
-        expect(result.query?.bool?.filter?.[0]?.match_all).toEqual({});
-        // minPrice is set, so range should be present
-        expect(result.query?.bool?.filter?.[1]?.range?.price?.gte).toBe(500);
+        expect(result).toMatchObject({
+          query: {
+            bool: {
+              must: [{ match: { title: 'laptop' } }],
+              filter: [
+                { match_all: {} },
+                { range: { price: { gte: 500 } } }
+              ]
+            }
+          }
+        });
       });
     });
 
