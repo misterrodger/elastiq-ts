@@ -1,4 +1,4 @@
-import { query, aggregations } from '..';
+import { query, aggregations, msearch, bulk, indexBuilder } from '..';
 
 /**
  * Real-world usage examples demonstrating elastiq's capabilities.
@@ -1599,6 +1599,589 @@ describe('Real-world Usage Examples', () => {
 
       expect(result.query?.percolate?.document?.cpu_usage).toBe(85);
       expect(result.query?.percolate?.preference).toBe('_local');
+    });
+  });
+
+  describe('Real-World Multi-Search Examples', () => {
+    it('should build dashboard with multiple product searches', () => {
+      type DashboardProduct = {
+        id: string;
+        name: string;
+        category: string;
+        price: number;
+        sales_count: number;
+        created_at: string;
+      };
+
+      // Top selling products query
+      const topSelling = query<DashboardProduct>()
+        .bool()
+        .filter((q) => q.range('created_at', { gte: 'now-30d' }))
+        .sort('sales_count', 'desc')
+        .size(10)
+        .build();
+
+      // New arrivals query
+      const newArrivals = query<DashboardProduct>()
+        .matchAll()
+        .sort('created_at', 'desc')
+        .size(10)
+        .build();
+
+      // Electronics deals query
+      const electronicsDeals = query<DashboardProduct>()
+        .bool()
+        .filter((q) => q.term('category', 'electronics'))
+        .filter((q) => q.range('price', { lte: 500 }))
+        .sort('price', 'asc')
+        .size(5)
+        .build();
+
+      const ndjson = msearch<DashboardProduct>()
+        .addQuery(topSelling, { index: 'products' })
+        .addQuery(newArrivals, { index: 'products' })
+        .addQuery(electronicsDeals, { index: 'products' })
+        .build();
+
+      expect(ndjson).toMatchInlineSnapshot(`
+        "{"index":"products"}
+        {"query":{"bool":{"filter":[{"range":{"created_at":{"gte":"now-30d"}}}]}},"sort":[{"sales_count":"desc"}],"size":10}
+        {"index":"products"}
+        {"query":{"match_all":{}},"sort":[{"created_at":"desc"}],"size":10}
+        {"index":"products"}
+        {"query":{"bool":{"filter":[{"term":{"category":"electronics"}},{"range":{"price":{"lte":500}}}]}},"sort":[{"price":"asc"}],"size":5}
+        "
+      `);
+    });
+
+    it('should search across multiple tenant indices', () => {
+      type TenantDocument = {
+        id: string;
+        content: string;
+        tenant_id: string;
+      };
+
+      const searchQuery = query<TenantDocument>()
+        .match('content', 'important')
+        .size(20)
+        .build();
+
+      const result = msearch<TenantDocument>()
+        .addQuery(searchQuery, { index: 'tenant-001-docs' })
+        .addQuery(searchQuery, { index: 'tenant-002-docs' })
+        .addQuery(searchQuery, { index: 'tenant-003-docs' })
+        .buildArray();
+
+      expect(result).toMatchInlineSnapshot(`
+        [
+          {
+            "index": "tenant-001-docs",
+          },
+          {
+            "query": {
+              "match": {
+                "content": "important",
+              },
+            },
+            "size": 20,
+          },
+          {
+            "index": "tenant-002-docs",
+          },
+          {
+            "query": {
+              "match": {
+                "content": "important",
+              },
+            },
+            "size": 20,
+          },
+          {
+            "index": "tenant-003-docs",
+          },
+          {
+            "query": {
+              "match": {
+                "content": "important",
+              },
+            },
+            "size": 20,
+          },
+        ]
+      `);
+    });
+  });
+
+  describe('Real-World Bulk Operations Examples', () => {
+    it('should build product catalog import', () => {
+      type CatalogProduct = {
+        sku: string;
+        name: string;
+        price: number;
+        category: string;
+        stock: number;
+      };
+
+      const products: CatalogProduct[] = [
+        {
+          sku: 'LAP-001',
+          name: 'Gaming Laptop',
+          price: 1299,
+          category: 'electronics',
+          stock: 15
+        },
+        {
+          sku: 'MOU-002',
+          name: 'Wireless Mouse',
+          price: 29,
+          category: 'accessories',
+          stock: 50
+        },
+        {
+          sku: 'KEY-003',
+          name: 'Mechanical Keyboard',
+          price: 149,
+          category: 'accessories',
+          stock: 30
+        }
+      ];
+
+      let bulkBuilder = bulk<CatalogProduct>();
+      for (const product of products) {
+        bulkBuilder = bulkBuilder.index(product, {
+          _index: 'products',
+          _id: product.sku
+        });
+      }
+
+      const ndjson = bulkBuilder.build();
+
+      expect(ndjson).toMatchInlineSnapshot(`
+        "{"index":{"_index":"products","_id":"LAP-001"}}
+        {"sku":"LAP-001","name":"Gaming Laptop","price":1299,"category":"electronics","stock":15}
+        {"index":{"_index":"products","_id":"MOU-002"}}
+        {"sku":"MOU-002","name":"Wireless Mouse","price":29,"category":"accessories","stock":50}
+        {"index":{"_index":"products","_id":"KEY-003"}}
+        {"sku":"KEY-003","name":"Mechanical Keyboard","price":149,"category":"accessories","stock":30}
+        "
+      `);
+    });
+
+    it('should build price update batch with script', () => {
+      type PricedProduct = {
+        id: string;
+        price: number;
+      };
+
+      // Apply 10% discount to specific products
+      const productIds = ['prod-1', 'prod-2', 'prod-3', 'prod-4', 'prod-5'];
+
+      let bulkBuilder = bulk<PricedProduct>();
+      for (const id of productIds) {
+        bulkBuilder = bulkBuilder.update({
+          _index: 'products',
+          _id: id,
+          script: {
+            source: 'ctx._source.price *= params.discount',
+            params: { discount: 0.9 }
+          }
+        });
+      }
+
+      const ndjson = bulkBuilder.build();
+
+      expect(ndjson).toMatchInlineSnapshot(`
+        "{"update":{"_index":"products","_id":"prod-1"}}
+        {"script":{"source":"ctx._source.price *= params.discount","params":{"discount":0.9}}}
+        {"update":{"_index":"products","_id":"prod-2"}}
+        {"script":{"source":"ctx._source.price *= params.discount","params":{"discount":0.9}}}
+        {"update":{"_index":"products","_id":"prod-3"}}
+        {"script":{"source":"ctx._source.price *= params.discount","params":{"discount":0.9}}}
+        {"update":{"_index":"products","_id":"prod-4"}}
+        {"script":{"source":"ctx._source.price *= params.discount","params":{"discount":0.9}}}
+        {"update":{"_index":"products","_id":"prod-5"}}
+        {"script":{"source":"ctx._source.price *= params.discount","params":{"discount":0.9}}}
+        "
+      `);
+    });
+
+    it('should build mixed CRUD operations', () => {
+      type InventoryItem = {
+        id: string;
+        name: string;
+        quantity: number;
+      };
+
+      const bulkOp = bulk<InventoryItem>()
+        // Add new items
+        .create(
+          { id: 'new-1', name: 'New Product', quantity: 100 },
+          { _index: 'inventory', _id: 'new-1' }
+        )
+        // Update stock levels
+        .update({
+          _index: 'inventory',
+          _id: 'existing-1',
+          doc: { quantity: 50 }
+        })
+        // Replace item entirely
+        .index(
+          { id: 'replace-1', name: 'Replaced Product', quantity: 25 },
+          { _index: 'inventory', _id: 'replace-1' }
+        )
+        // Remove discontinued items
+        .delete({ _index: 'inventory', _id: 'discontinued-1' })
+        .build();
+
+      expect(bulkOp).toMatchInlineSnapshot(`
+        "{"create":{"_index":"inventory","_id":"new-1"}}
+        {"id":"new-1","name":"New Product","quantity":100}
+        {"update":{"_index":"inventory","_id":"existing-1"}}
+        {"doc":{"quantity":50}}
+        {"index":{"_index":"inventory","_id":"replace-1"}}
+        {"id":"replace-1","name":"Replaced Product","quantity":25}
+        {"delete":{"_index":"inventory","_id":"discontinued-1"}}
+        "
+      `);
+    });
+
+    it('should build upsert operations for sync', () => {
+      type SyncedDocument = {
+        id: string;
+        data: string;
+        updated_at: string;
+      };
+
+      const updates = [
+        { id: 'doc-1', data: 'Updated content', updated_at: '2024-01-15' },
+        { id: 'doc-2', data: 'New content', updated_at: '2024-01-15' }
+      ];
+
+      let bulkBuilder = bulk<SyncedDocument>();
+      for (const update of updates) {
+        bulkBuilder = bulkBuilder.update({
+          _index: 'documents',
+          _id: update.id,
+          doc: update,
+          upsert: update // Insert if doesn't exist
+        });
+      }
+
+      const ndjson = bulkBuilder.build();
+
+      expect(ndjson).toMatchInlineSnapshot(`
+        "{"update":{"_index":"documents","_id":"doc-1"}}
+        {"doc":{"id":"doc-1","data":"Updated content","updated_at":"2024-01-15"},"upsert":{"id":"doc-1","data":"Updated content","updated_at":"2024-01-15"}}
+        {"update":{"_index":"documents","_id":"doc-2"}}
+        {"doc":{"id":"doc-2","data":"New content","updated_at":"2024-01-15"},"upsert":{"id":"doc-2","data":"New content","updated_at":"2024-01-15"}}
+        "
+      `);
+    });
+  });
+
+  describe('Real-World Index Management Examples', () => {
+    it('should build e-commerce product index', () => {
+      type EcommerceProduct = {
+        sku: string;
+        name: string;
+        description: string;
+        price: number;
+        category: string;
+        brand: string;
+        tags: string[];
+        rating: number;
+        reviewCount: number;
+        inStock: boolean;
+        createdAt: string;
+      };
+
+      const indexConfig = indexBuilder<EcommerceProduct>()
+        .mappings({
+          properties: {
+            sku: { type: 'keyword' },
+            name: {
+              type: 'text',
+              analyzer: 'standard',
+              fields: { keyword: { type: 'keyword' } }
+            },
+            description: { type: 'text', analyzer: 'english' },
+            price: { type: 'scaled_float', scaling_factor: 100 },
+            category: { type: 'keyword' },
+            brand: { type: 'keyword' },
+            tags: { type: 'keyword' },
+            rating: { type: 'half_float' },
+            reviewCount: { type: 'integer' },
+            inStock: { type: 'boolean' },
+            createdAt: { type: 'date' }
+          }
+        })
+        .settings({
+          number_of_shards: 3,
+          number_of_replicas: 2,
+          refresh_interval: '1s'
+        })
+        .alias('products')
+        .build();
+
+      expect(indexConfig).toMatchInlineSnapshot(`
+        {
+          "aliases": {
+            "products": {},
+          },
+          "mappings": {
+            "properties": {
+              "brand": {
+                "type": "keyword",
+              },
+              "category": {
+                "type": "keyword",
+              },
+              "createdAt": {
+                "type": "date",
+              },
+              "description": {
+                "analyzer": "english",
+                "type": "text",
+              },
+              "inStock": {
+                "type": "boolean",
+              },
+              "name": {
+                "analyzer": "standard",
+                "fields": {
+                  "keyword": {
+                    "type": "keyword",
+                  },
+                },
+                "type": "text",
+              },
+              "price": {
+                "scaling_factor": 100,
+                "type": "scaled_float",
+              },
+              "rating": {
+                "type": "half_float",
+              },
+              "reviewCount": {
+                "type": "integer",
+              },
+              "sku": {
+                "type": "keyword",
+              },
+              "tags": {
+                "type": "keyword",
+              },
+            },
+          },
+          "settings": {
+            "number_of_replicas": 2,
+            "number_of_shards": 3,
+            "refresh_interval": "1s",
+          },
+        }
+      `);
+    });
+
+    it('should build vector search index with HNSW', () => {
+      type VectorDocument = {
+        title: string;
+        content: string;
+        embedding: number[];
+        category: string;
+      };
+
+      const indexConfig = indexBuilder<VectorDocument>()
+        .mappings({
+          properties: {
+            title: { type: 'text' },
+            content: { type: 'text' },
+            embedding: {
+              type: 'dense_vector',
+              dims: 768,
+              index: true,
+              similarity: 'cosine',
+              index_options: {
+                type: 'hnsw',
+                m: 16,
+                ef_construction: 100
+              }
+            },
+            category: { type: 'keyword' }
+          }
+        })
+        .settings({
+          number_of_shards: 1,
+          number_of_replicas: 0
+        })
+        .build();
+
+      expect(indexConfig).toMatchInlineSnapshot(`
+        {
+          "mappings": {
+            "properties": {
+              "category": {
+                "type": "keyword",
+              },
+              "content": {
+                "type": "text",
+              },
+              "embedding": {
+                "dims": 768,
+                "index": true,
+                "index_options": {
+                  "ef_construction": 100,
+                  "m": 16,
+                  "type": "hnsw",
+                },
+                "similarity": "cosine",
+                "type": "dense_vector",
+              },
+              "title": {
+                "type": "text",
+              },
+            },
+          },
+          "settings": {
+            "number_of_replicas": 0,
+            "number_of_shards": 1,
+          },
+        }
+      `);
+    });
+
+    it('should build time-series index with aliases', () => {
+      type LogEntry = {
+        timestamp: string;
+        level: string;
+        message: string;
+        service: string;
+        trace_id: string;
+      };
+
+      const indexConfig = indexBuilder<LogEntry>()
+        .mappings({
+          properties: {
+            timestamp: { type: 'date' },
+            level: { type: 'keyword' },
+            message: { type: 'text', analyzer: 'standard' },
+            service: { type: 'keyword' },
+            trace_id: { type: 'keyword' }
+          }
+        })
+        .settings({
+          number_of_shards: 1,
+          number_of_replicas: 1,
+          refresh_interval: '5s'
+        })
+        .alias('logs-current', { is_write_index: true })
+        .alias('logs-all')
+        .build();
+
+      expect(indexConfig).toMatchInlineSnapshot(`
+        {
+          "aliases": {
+            "logs-all": {},
+            "logs-current": {
+              "is_write_index": true,
+            },
+          },
+          "mappings": {
+            "properties": {
+              "level": {
+                "type": "keyword",
+              },
+              "message": {
+                "analyzer": "standard",
+                "type": "text",
+              },
+              "service": {
+                "type": "keyword",
+              },
+              "timestamp": {
+                "type": "date",
+              },
+              "trace_id": {
+                "type": "keyword",
+              },
+            },
+          },
+          "settings": {
+            "number_of_replicas": 1,
+            "number_of_shards": 1,
+            "refresh_interval": "5s",
+          },
+        }
+      `);
+    });
+
+    it('should build multi-field text index for search', () => {
+      type Article = {
+        title: string;
+        author: string;
+        content: string;
+        publishedAt: string;
+      };
+
+      const indexConfig = indexBuilder<Article>()
+        .mappings({
+          properties: {
+            title: {
+              type: 'text',
+              analyzer: 'english',
+              fields: {
+                exact: { type: 'keyword' },
+                raw: { type: 'text', analyzer: 'standard' }
+              }
+            },
+            author: { type: 'keyword' },
+            content: {
+              type: 'text',
+              analyzer: 'english'
+            },
+            publishedAt: { type: 'date' }
+          }
+        })
+        .settings({
+          number_of_shards: 2,
+          number_of_replicas: 1
+        })
+        .build();
+
+      expect(indexConfig).toMatchInlineSnapshot(`
+        {
+          "mappings": {
+            "properties": {
+              "author": {
+                "type": "keyword",
+              },
+              "content": {
+                "analyzer": "english",
+                "type": "text",
+              },
+              "publishedAt": {
+                "type": "date",
+              },
+              "title": {
+                "analyzer": "english",
+                "fields": {
+                  "exact": {
+                    "type": "keyword",
+                  },
+                  "raw": {
+                    "analyzer": "standard",
+                    "type": "text",
+                  },
+                },
+                "type": "text",
+              },
+            },
+          },
+          "settings": {
+            "number_of_replicas": 1,
+            "number_of_shards": 2,
+          },
+        }
+      `);
     });
   });
 });

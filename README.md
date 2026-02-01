@@ -16,8 +16,8 @@ elastiq simplifies building Elasticsearch queries in TypeScript. Write type-chec
 - ✨ **Type-Safe**: Full TypeScript generics for field autocomplete and type checking
 - 🔗 **Fluent API**: Chainable query builder with intuitive method names
 - 🎯 **Zero Runtime Overhead**: Compiles directly to Elasticsearch DSL objects
-- 🧪 **Well-Tested**: 147+ passing tests with comprehensive coverage
-- 📦 **Lightweight**: ~15KB uncompressed, no external dependencies
+- 🧪 **Well-Tested**: 388+ passing tests with 98%+ coverage
+- 📦 **Lightweight**: ~20KB uncompressed, no external dependencies
 - 🎓 **Great DX**: Excellent IntelliSense and error messages
 - 🚀 **Ready to Use**: Core query features working and tested
 
@@ -451,10 +451,315 @@ const securityAlerts = query<AlertRule>()
 ```
 
 **Common Use Cases:**
+
 - **Alerting:** Match events against alert rules
 - **Content Classification:** Categorize documents in real-time
 - **Saved Searches:** Notify users when new content matches their searches
 - **Monitoring:** Trigger actions based on metric thresholds
+
+### Multi-Search API
+
+Batch multiple search requests in a single API call using the NDJSON format.
+
+```typescript
+import { query, msearch } from 'elastiq';
+
+const laptopQuery = query<Product>()
+  .match('name', 'laptop')
+  .range('price', { gte: 500, lte: 2000 })
+  .build();
+
+const phoneQuery = query<Product>()
+  .match('name', 'smartphone')
+  .range('price', { gte: 300, lte: 1000 })
+  .build();
+
+// Build as NDJSON string for Elasticsearch API
+const ndjson = msearch<Product>()
+  .addQuery(laptopQuery, { index: 'products', preference: '_local' })
+  .addQuery(phoneQuery, { index: 'products', preference: '_local' })
+  .build();
+
+// Or build as array of objects
+const array = msearch<Product>()
+  .addQuery(laptopQuery, { index: 'products' })
+  .addQuery(phoneQuery, { index: 'products' })
+  .buildArray();
+```
+
+**NDJSON Format (for Elasticsearch `_msearch` endpoint):**
+
+```ndjson
+{"index":"products","preference":"_local"}
+{"query":{"bool":{"must":[{"match":{"name":"laptop"}},{"range":{"price":{"gte":500,"lte":2000}}}]}}}
+{"index":"products","preference":"_local"}
+{"query":{"bool":{"must":[{"match":{"name":"smartphone"}},{"range":{"price":{"gte":300,"lte":1000}}}]}}}
+
+```
+
+**Header Options:**
+
+- `index`: Target index/indices (string or array)
+- `routing`: Routing value for sharding
+- `preference`: Node preference (\_local, \_primary, etc.)
+- `search_type`: Search type (dfs_query_then_fetch, etc.)
+
+**Common Use Cases:**
+
+- **Batch Search:** Execute multiple searches in one request
+- **Cross-Index Search:** Query different indices simultaneously
+- **Performance Optimization:** Reduce HTTP overhead for multiple queries
+- **Dashboard Queries:** Load multiple widgets/charts in parallel
+
+### Bulk Operations
+
+Batch create, index, update, and delete operations efficiently.
+
+```typescript
+import { bulk } from 'elastiq';
+
+type Product = {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+};
+
+const bulkOp = bulk<Product>()
+  // Index (create or replace)
+  .index(
+    { id: '1', name: 'Laptop Pro', price: 1299, category: 'electronics' },
+    { _index: 'products', _id: '1' }
+  )
+  // Create (fail if exists)
+  .create(
+    { id: '2', name: 'Wireless Mouse', price: 29, category: 'accessories' },
+    { _index: 'products', _id: '2' }
+  )
+  // Update (partial document)
+  .update({
+    _index: 'products',
+    _id: '3',
+    doc: { price: 999 }
+  })
+  // Update with script
+  .update({
+    _index: 'products',
+    _id: '4',
+    script: {
+      source: 'ctx._source.price *= params.multiplier',
+      params: { multiplier: 0.9 }
+    }
+  })
+  // Update with upsert
+  .update({
+    _index: 'products',
+    _id: '5',
+    doc: { price: 499 },
+    upsert: { id: '5', name: 'New Product', price: 499, category: 'electronics' }
+  })
+  // Delete
+  .delete({ _index: 'products', _id: '6' })
+  .build();
+
+// Send to Elasticsearch /_bulk endpoint
+// POST /_bulk
+// Content-Type: application/x-ndjson
+// Body: bulkOp
+```
+
+**NDJSON Format:**
+
+```ndjson
+{"index":{"_index":"products","_id":"1"}}
+{"id":"1","name":"Laptop Pro","price":1299,"category":"electronics"}
+{"create":{"_index":"products","_id":"2"}}
+{"id":"2","name":"Wireless Mouse","price":29,"category":"accessories"}
+{"update":{"_index":"products","_id":"3"}}
+{"doc":{"price":999}}
+{"update":{"_index":"products","_id":"4"}}
+{"script":{"source":"ctx._source.price *= params.multiplier","params":{"multiplier":0.9}}}
+{"update":{"_index":"products","_id":"5"}}
+{"doc":{"price":499},"upsert":{"id":"5","name":"New Product","price":499,"category":"electronics"}}
+{"delete":{"_index":"products","_id":"6"}}
+
+```
+
+**Operation Types:**
+
+- `index`: Create or replace document
+- `create`: Create new document (fails if exists)
+- `update`: Partial update with doc, script, or upsert
+- `delete`: Remove document
+
+**Update Options:**
+
+- `doc`: Partial document merge
+- `script`: Script-based update (Painless)
+- `upsert`: Document to insert if not exists
+- `doc_as_upsert`: Use doc as upsert document
+- `retry_on_conflict`: Retry count for version conflicts
+
+**Common Use Cases:**
+
+- **Data Import:** Batch insert large datasets
+- **Sync Operations:** Keep indices in sync with external systems
+- **Price Updates:** Update multiple products efficiently
+- **Batch Deletes:** Remove outdated documents in bulk
+
+### Index Management
+
+Configure index mappings, settings, and aliases declaratively.
+
+```typescript
+import { indexBuilder } from 'elastiq';
+
+type Product = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  tags: string[];
+  inStock: boolean;
+  embedding: number[];
+};
+
+const indexConfig = indexBuilder<Product>()
+  .mappings({
+    properties: {
+      id: { type: 'keyword' },
+      name: { type: 'text', analyzer: 'standard' },
+      description: { type: 'text', analyzer: 'english' },
+      price: { type: 'float' },
+      category: { type: 'keyword' },
+      tags: { type: 'keyword' },
+      inStock: { type: 'boolean' },
+      embedding: {
+        type: 'dense_vector',
+        dims: 384,
+        index: true,
+        similarity: 'cosine'
+      }
+    }
+  })
+  .settings({
+    number_of_shards: 2,
+    number_of_replicas: 1,
+    refresh_interval: '5s',
+    'index.max_result_window': 10000
+  })
+  .alias('products_current')
+  .alias('products_search', { is_write_index: true })
+  .build();
+
+// Use with Elasticsearch Create Index API
+// PUT /products
+// Content-Type: application/json
+// Body: JSON.stringify(indexConfig)
+```
+
+**Field Types (20+ supported):**
+
+- **Text:** `text`, `keyword`, `constant_keyword`
+- **Numeric:** `long`, `integer`, `short`, `byte`, `double`, `float`, `half_float`, `scaled_float`
+- **Date:** `date`, `date_nanos`
+- **Boolean:** `boolean`
+- **Binary:** `binary`
+- **Range:** `integer_range`, `float_range`, `long_range`, `double_range`, `date_range`
+- **Objects:** `object`, `nested`, `flattened`
+- **Spatial:** `geo_point`, `geo_shape`
+- **Specialized:** `ip`, `completion`, `token_count`, `dense_vector`, `rank_feature`, `rank_features`
+
+**Mapping Properties:**
+
+- `type`: Field type
+- `analyzer`: Text analyzer (standard, english, etc.)
+- `index`: Enable/disable indexing
+- `store`: Store field separately
+- `fields`: Multi-field mappings
+- `null_value`: Default for null values
+- `copy_to`: Copy field to another field
+- `eager_global_ordinals`: Optimize aggregations
+
+**Settings Options:**
+
+- `number_of_shards`: Shard count (set at creation)
+- `number_of_replicas`: Replica count
+- `refresh_interval`: Auto-refresh interval
+- `max_result_window`: Maximum result window size
+- `analysis`: Custom analyzers, tokenizers, filters
+
+**Alias Options:**
+
+- `is_write_index`: Designate write target for alias
+- `routing`: Default routing value
+- `filter`: Filter documents visible through alias
+
+**Real-World Examples:**
+
+**E-commerce Index:**
+
+```typescript
+const ecommerceIndex = indexBuilder<Product>()
+  .mappings({
+    properties: {
+      sku: { type: 'keyword' },
+      name: { type: 'text', analyzer: 'standard', fields: { keyword: { type: 'keyword' } } },
+      description: { type: 'text', analyzer: 'english' },
+      price: { type: 'scaled_float', scaling_factor: 100 },
+      category: { type: 'keyword' },
+      brand: { type: 'keyword' },
+      tags: { type: 'keyword' },
+      rating: { type: 'half_float' },
+      reviewCount: { type: 'integer' },
+      inStock: { type: 'boolean' },
+      createdAt: { type: 'date' }
+    }
+  })
+  .settings({
+    number_of_shards: 3,
+    number_of_replicas: 2,
+    refresh_interval: '1s'
+  })
+  .alias('products')
+  .build();
+```
+
+**Vector Search Index:**
+
+```typescript
+const vectorIndex = indexBuilder<Article>()
+  .mappings({
+    properties: {
+      title: { type: 'text' },
+      content: { type: 'text' },
+      embedding: {
+        type: 'dense_vector',
+        dims: 768,
+        index: true,
+        similarity: 'cosine',
+        index_options: {
+          type: 'hnsw',
+          m: 16,
+          ef_construction: 100
+        }
+      }
+    }
+  })
+  .settings({
+    number_of_shards: 1,
+    number_of_replicas: 0
+  })
+  .build();
+```
+
+**Common Use Cases:**
+
+- **Index Creation:** Define schema before indexing data
+- **Schema Migration:** Version indices with aliases
+- **Multi-Tenancy:** Create per-tenant indices programmatically
+- **Vector Search Setup:** Configure dense_vector fields with HNSW
 
 ## Examples
 
@@ -675,14 +980,14 @@ All queries are tested against the Elasticsearch DSL specification with 147+ pas
 - [x] Dense vector field support
 - [x] Script queries and custom scoring
 - [x] Percolate queries for reverse search
-- [x] Full test coverage (330+ tests)
+- [x] Multi-search API (NDJSON batched queries)
+- [x] Bulk operations (create, index, update, delete)
+- [x] Index management (mappings, settings, aliases)
+- [x] Full test coverage (388+ tests)
 
 ### Planned for Future Releases
 
-- [ ] Multi-search API
-- [ ] Index management utilities
-- [ ] Bulk operations
-- [ ] Query suggestions/completions
+- [ ] Query suggestions/completions (term, phrase, completion)
 
 ## Contributing
 
