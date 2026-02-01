@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { AggregationBuilder, AggregationState } from './aggregation-types';
+import { KnnOptions } from './vector-types';
 
 export type MatchOptions = {
   operator?: 'and' | 'or';
@@ -66,6 +67,15 @@ export type GeoPolygonOptions = {
 export type QueryState<T> = {
   _includeQuery?: boolean;
   query?: any;
+  knn?: {
+    field: string;
+    query_vector: number[];
+    k: number;
+    num_candidates: number;
+    filter?: any;
+    boost?: number;
+    similarity?: number;
+  };
   aggs?: AggregationState;
   from?: number;
   to?: number;
@@ -119,6 +129,11 @@ export type ClauseBuilder<T> = {
     options?: FuzzyOptions
   ) => any;
   ids: (values: string[]) => any;
+  knn: <K extends keyof T>(
+    field: K,
+    queryVector: number[],
+    options: KnnOptions
+  ) => any;
   when: <R>(
     condition: any,
     thenFn: (q: ClauseBuilder<T>) => R,
@@ -172,6 +187,12 @@ export type QueryBuilder<T> = {
     path: P,
     fn: (q: ClauseBuilder<any>) => any,
     options?: { score_mode?: 'avg' | 'sum' | 'min' | 'max' | 'none' }
+  ) => QueryBuilder<T>;
+  // Vector search
+  knn: <K extends keyof T>(
+    field: K,
+    queryVector: number[],
+    options: KnnOptions
   ) => QueryBuilder<T>;
   // Conditionals
   when: <R>(

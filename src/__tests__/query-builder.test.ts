@@ -17,6 +17,15 @@ type TestIndex2 = {
   category: string;
 };
 
+type ProductWithEmbedding = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  embedding: number[];
+};
+
 describe('QueryBuilder', () => {
   describe('Meta properties', () => {
     it('should add from', () => {
@@ -4573,7 +4582,11 @@ describe('QueryBuilder', () => {
           query: {
             bool: {
               must: [
-                { match: { title: { query: searchTerm, operator: 'and', boost: 2 } } }
+                {
+                  match: {
+                    title: { query: searchTerm, operator: 'and', boost: 2 }
+                  }
+                }
               ],
               filter: [
                 { term: { category } },
@@ -4655,7 +4668,10 @@ describe('QueryBuilder', () => {
         expect(result).toMatchObject({
           aggs: {
             sales_by_day: {
-              date_histogram: expect.objectContaining({ interval: 'day', min_doc_count: 0 }),
+              date_histogram: expect.objectContaining({
+                interval: 'day',
+                min_doc_count: 0
+              }),
               aggs: {
                 daily_revenue: { sum: { field: 'price' } },
                 avg_order_value: { avg: { field: 'price' } },
@@ -4714,12 +4730,20 @@ describe('QueryBuilder', () => {
         expect(result).toMatchObject({
           aggs: {
             by_hour: {
-              date_histogram: { interval: 'hour', time_zone: 'UTC', min_doc_count: 0 },
+              date_histogram: {
+                interval: 'hour',
+                time_zone: 'UTC',
+                min_doc_count: 0
+              },
               aggs: {
                 avg_value: { avg: { field: 'price' } },
                 min_value: { min: { field: 'price' } },
                 max_value: { max: { field: 'price' } },
-                value_percentiles: { percentiles: expect.objectContaining({ percents: [50, 90, 95, 99] }) }
+                value_percentiles: {
+                  percentiles: expect.objectContaining({
+                    percents: [50, 90, 95, 99]
+                  })
+                }
               }
             }
           },
@@ -4758,8 +4782,14 @@ describe('QueryBuilder', () => {
           },
           highlight: {
             fields: {
-              title: expect.objectContaining({ fragment_size: 200, number_of_fragments: 3 }),
-              description: expect.objectContaining({ fragment_size: 200, number_of_fragments: 3 })
+              title: expect.objectContaining({
+                fragment_size: 200,
+                number_of_fragments: 3
+              }),
+              description: expect.objectContaining({
+                fragment_size: 200,
+                number_of_fragments: 3
+              })
             }
           },
           from: 0,
@@ -4840,10 +4870,7 @@ describe('QueryBuilder', () => {
           query: {
             bool: {
               must: [{ match: { title: 'laptop' } }],
-              filter: [
-                { match_all: {} },
-                { range: { price: { gte: 500 } } }
-              ]
+              filter: [{ match_all: {} }, { range: { price: { gte: 500 } } }]
             }
           }
         });
@@ -4947,6 +4974,720 @@ describe('QueryBuilder', () => {
 
         expect(result).toBeDefined();
         expect(result.query?.match_all).toEqual({});
+      });
+    });
+
+    describe('KNN Queries (Vector Search)', () => {
+      describe('Basic KNN queries', () => {
+        it('should build a basic knn query', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.3, 0.8], {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "field": "embedding",
+                "k": 10,
+                "num_candidates": 100,
+                "query_vector": [
+                  0.5,
+                  0.3,
+                  0.8,
+                ],
+              },
+            }
+          `);
+        });
+
+        it('should build knn query with boost', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.1, 0.2, 0.3], {
+              k: 5,
+              num_candidates: 50,
+              boost: 2.0
+            })
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "boost": 2,
+                "field": "embedding",
+                "k": 5,
+                "num_candidates": 50,
+                "query_vector": [
+                  0.1,
+                  0.2,
+                  0.3,
+                ],
+              },
+            }
+          `);
+        });
+
+        it('should build knn query with similarity threshold', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.9, 0.1, 0.5], {
+              k: 20,
+              num_candidates: 200,
+              similarity: 0.8
+            })
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "field": "embedding",
+                "k": 20,
+                "num_candidates": 200,
+                "query_vector": [
+                  0.9,
+                  0.1,
+                  0.5,
+                ],
+                "similarity": 0.8,
+              },
+            }
+          `);
+        });
+
+        it('should build knn query with filter', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.4, 0.6, 0.2], {
+              k: 10,
+              num_candidates: 100,
+              filter: {
+                term: { category: 'electronics' }
+              }
+            })
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "field": "embedding",
+                "filter": {
+                  "term": {
+                    "category": "electronics",
+                  },
+                },
+                "k": 10,
+                "num_candidates": 100,
+                "query_vector": [
+                  0.4,
+                  0.6,
+                  0.2,
+                ],
+              },
+            }
+          `);
+        });
+
+        it('should build knn query with all options', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.2, 0.4, 0.6, 0.8], {
+              k: 15,
+              num_candidates: 150,
+              filter: {
+                range: { price: { gte: 100, lte: 500 } }
+              },
+              boost: 1.5,
+              similarity: 0.75
+            })
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "boost": 1.5,
+                "field": "embedding",
+                "filter": {
+                  "range": {
+                    "price": {
+                      "gte": 100,
+                      "lte": 500,
+                    },
+                  },
+                },
+                "k": 15,
+                "num_candidates": 150,
+                "query_vector": [
+                  0.2,
+                  0.4,
+                  0.6,
+                  0.8,
+                ],
+                "similarity": 0.75,
+              },
+            }
+          `);
+        });
+      });
+
+      describe('KNN with query parameters', () => {
+        it('should combine knn with size and from', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10,
+              num_candidates: 100
+            })
+            .size(20)
+            .from(0)
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "from": 0,
+              "knn": {
+                "field": "embedding",
+                "k": 10,
+                "num_candidates": 100,
+                "query_vector": [
+                  0.5,
+                  0.5,
+                ],
+              },
+              "size": 20,
+            }
+          `);
+        });
+
+        it('should combine knn with _source', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.3, 0.7], {
+              k: 5,
+              num_candidates: 50
+            })
+            ._source(['name', 'price', 'category'])
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "_source": [
+                "name",
+                "price",
+                "category",
+              ],
+              "knn": {
+                "field": "embedding",
+                "k": 5,
+                "num_candidates": 50,
+                "query_vector": [
+                  0.3,
+                  0.7,
+                ],
+              },
+            }
+          `);
+        });
+
+        it('should combine knn with sort', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.1, 0.9], {
+              k: 10,
+              num_candidates: 100
+            })
+            .sort('price', 'asc')
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "field": "embedding",
+                "k": 10,
+                "num_candidates": 100,
+                "query_vector": [
+                  0.1,
+                  0.9,
+                ],
+              },
+              "sort": [
+                {
+                  "price": "asc",
+                },
+              ],
+            }
+          `);
+        });
+
+        it('should combine knn with timeout and other meta params', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.6, 0.4], {
+              k: 10,
+              num_candidates: 100
+            })
+            .timeout('5s')
+            .trackScores(true)
+            .minScore(0.5)
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "field": "embedding",
+                "k": 10,
+                "num_candidates": 100,
+                "query_vector": [
+                  0.6,
+                  0.4,
+                ],
+              },
+              "min_score": 0.5,
+              "timeout": "5s",
+              "track_scores": true,
+            }
+          `);
+        });
+      });
+
+      describe('KNN with different vector dimensions', () => {
+        it('should handle 128-dimensional vectors', () => {
+          const vector128 = new Array(128).fill(0).map((_, i) => i / 128);
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', vector128, {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toHaveLength(128);
+          expect(result.knn?.field).toBe('embedding');
+        });
+
+        it('should handle 384-dimensional vectors', () => {
+          const vector384 = new Array(384).fill(0).map((_, i) => i / 384);
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', vector384, {
+              k: 5,
+              num_candidates: 50
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toHaveLength(384);
+        });
+
+        it('should handle 768-dimensional vectors', () => {
+          const vector768 = new Array(768).fill(0).map((_, i) => i / 768);
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', vector768, {
+              k: 20,
+              num_candidates: 200
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toHaveLength(768);
+        });
+
+        it('should handle 1536-dimensional vectors (OpenAI ada-002)', () => {
+          const vector1536 = new Array(1536).fill(0).map((_, i) => i / 1536);
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', vector1536, {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toHaveLength(1536);
+        });
+      });
+
+      describe('KNN with complex filters', () => {
+        it('should support bool filter with knn', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10,
+              num_candidates: 100,
+              filter: {
+                bool: {
+                  must: [{ term: { category: 'electronics' } }],
+                  filter: [{ range: { price: { gte: 100 } } }]
+                }
+              }
+            })
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "knn": {
+                "field": "embedding",
+                "filter": {
+                  "bool": {
+                    "filter": [
+                      {
+                        "range": {
+                          "price": {
+                            "gte": 100,
+                          },
+                        },
+                      },
+                    ],
+                    "must": [
+                      {
+                        "term": {
+                          "category": "electronics",
+                        },
+                      },
+                    ],
+                  },
+                },
+                "k": 10,
+                "num_candidates": 100,
+                "query_vector": [
+                  0.5,
+                  0.5,
+                ],
+              },
+            }
+          `);
+        });
+
+        it('should support multiple term filters with knn', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.3, 0.7], {
+              k: 15,
+              num_candidates: 150,
+              filter: {
+                bool: {
+                  must: [
+                    { term: { category: 'electronics' } },
+                    { term: { id: 'prod-123' } }
+                  ]
+                }
+              }
+            })
+            .build();
+
+          expect(result.knn?.filter).toBeDefined();
+          expect(result.knn?.filter.bool.must).toHaveLength(2);
+        });
+      });
+
+      describe('KNN edge cases', () => {
+        it('should handle empty vector', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [], {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toEqual([]);
+        });
+
+        it('should handle single-dimensional vector', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5], {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toEqual([0.5]);
+        });
+
+        it('should handle k = 1', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 1,
+              num_candidates: 10
+            })
+            .build();
+
+          expect(result.knn?.k).toBe(1);
+        });
+
+        it('should handle large k value', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10000,
+              num_candidates: 50000
+            })
+            .build();
+
+          expect(result.knn?.k).toBe(10000);
+          expect(result.knn?.num_candidates).toBe(50000);
+        });
+
+        it('should handle similarity = 0', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10,
+              num_candidates: 100,
+              similarity: 0
+            })
+            .build();
+
+          expect(result.knn?.similarity).toBe(0);
+        });
+
+        it('should handle similarity = 1', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10,
+              num_candidates: 100,
+              similarity: 1
+            })
+            .build();
+
+          expect(result.knn?.similarity).toBe(1);
+        });
+
+        it('should handle negative vector values', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [-0.5, -0.3, 0.8], {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toEqual([-0.5, -0.3, 0.8]);
+        });
+
+        it('should handle very small vector values', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.000001, 0.000002, 0.000003], {
+              k: 10,
+              num_candidates: 100
+            })
+            .build();
+
+          expect(result.knn?.query_vector).toEqual([
+            0.000001, 0.000002, 0.000003
+          ]);
+        });
+      });
+
+      describe('KNN method chaining', () => {
+        it('should support fluent chaining with other methods', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10,
+              num_candidates: 100
+            })
+            .size(20)
+            .from(0)
+            ._source(['name', 'price'])
+            .timeout('10s')
+            .build();
+
+          expect(result.knn).toBeDefined();
+          expect(result.size).toBe(20);
+          expect(result.from).toBe(0);
+          expect(result._source).toEqual(['name', 'price']);
+          expect(result.timeout).toBe('10s');
+        });
+
+        it('should maintain knn when chained before other methods', () => {
+          const result = query<ProductWithEmbedding>()
+            .size(20)
+            .knn('embedding', [0.7, 0.3], {
+              k: 5,
+              num_candidates: 50
+            })
+            .from(10)
+            .build();
+
+          expect(result.knn?.field).toBe('embedding');
+          expect(result.size).toBe(20);
+          expect(result.from).toBe(10);
+        });
+      });
+
+      describe('Hybrid search patterns', () => {
+        it('should support knn with aggregations', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.5, 0.5], {
+              k: 10,
+              num_candidates: 100,
+              filter: { term: { category: 'electronics' } }
+            })
+            .aggs((agg) => agg.terms('categories', 'category', { size: 10 }))
+            .build();
+
+          expect(result.knn).toBeDefined();
+          expect(result.aggs).toBeDefined();
+          expect(result.aggs?.categories).toBeDefined();
+        });
+
+        it('should support knn-only search (no text query)', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.8, 0.2], {
+              k: 20,
+              num_candidates: 200
+            })
+            .size(20)
+            .build();
+
+          expect(result.knn).toBeDefined();
+          expect(result.query).toBeUndefined();
+          expect(result.size).toBe(20);
+        });
+      });
+
+      describe('KNN in ClauseBuilder context', () => {
+        it('should support knn in bool query filter', () => {
+          const result = query<ProductWithEmbedding>()
+            .bool()
+            .filter((q) =>
+              q.knn('embedding', [0.5, 0.5], {
+                k: 10,
+                num_candidates: 100
+              })
+            )
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "query": {
+                "bool": {
+                  "filter": [
+                    {
+                      "knn": {
+                        "field": "embedding",
+                        "k": 10,
+                        "num_candidates": 100,
+                        "query_vector": [
+                          0.5,
+                          0.5,
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            }
+          `);
+        });
+
+        it('should support knn in bool query must', () => {
+          const result = query<ProductWithEmbedding>()
+            .bool()
+            .must((q) =>
+              q.knn('embedding', [0.3, 0.7], {
+                k: 5,
+                num_candidates: 50,
+                boost: 2.0
+              })
+            )
+            .build();
+
+          expect(result).toMatchInlineSnapshot(`
+            {
+              "query": {
+                "bool": {
+                  "must": [
+                    {
+                      "knn": {
+                        "boost": 2,
+                        "field": "embedding",
+                        "k": 5,
+                        "num_candidates": 50,
+                        "query_vector": [
+                          0.3,
+                          0.7,
+                        ],
+                      },
+                    },
+                  ],
+                },
+              },
+            }
+          `);
+        });
+
+        it('should support knn in bool query should', () => {
+          const result = query<ProductWithEmbedding>()
+            .bool()
+            .should((q) =>
+              q.knn('embedding', [0.6, 0.4], {
+                k: 10,
+                num_candidates: 100
+              })
+            )
+            .build();
+
+          expect(result.query?.bool?.should).toHaveLength(1);
+          expect(result.query?.bool?.should[0].knn).toBeDefined();
+        });
+
+        it('should support multiple knn queries in bool', () => {
+          const result = query<ProductWithEmbedding>()
+            .bool()
+            .should((q) =>
+              q.knn('embedding', [0.5, 0.5], {
+                k: 10,
+                num_candidates: 100
+              })
+            )
+            .filter((q) => q.term('category', 'electronics'))
+            .build();
+
+          expect(result.query?.bool?.should).toHaveLength(1);
+          expect(result.query?.bool?.filter).toHaveLength(1);
+        });
+      });
+
+      describe('Real-world KNN scenarios', () => {
+        it('should build semantic product search query', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.23, 0.45, 0.67, 0.89], {
+              k: 10,
+              num_candidates: 100,
+              filter: {
+                bool: {
+                  must: [{ range: { price: { gte: 50, lte: 500 } } }],
+                  filter: [{ term: { category: 'electronics' } }]
+                }
+              },
+              boost: 1.2
+            })
+            .size(10)
+            ._source(['name', 'description', 'price'])
+            .build();
+
+          expect(result.knn).toBeDefined();
+          expect(result.knn?.filter).toBeDefined();
+          expect(result.size).toBe(10);
+        });
+
+        it('should build image similarity search query', () => {
+          const imageEmbedding = new Array(512)
+            .fill(0)
+            .map(() => Math.random());
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', imageEmbedding, {
+              k: 20,
+              num_candidates: 200,
+              similarity: 0.7
+            })
+            .size(20)
+            .from(0)
+            .build();
+
+          expect(result.knn?.query_vector).toHaveLength(512);
+          expect(result.knn?.similarity).toBe(0.7);
+        });
+
+        it('should build recommendation engine query', () => {
+          const result = query<ProductWithEmbedding>()
+            .knn('embedding', [0.1, 0.2, 0.3, 0.4, 0.5], {
+              k: 50,
+              num_candidates: 500,
+              filter: {
+                bool: {
+                  must_not: [{ term: { id: 'current-product-id' } }]
+                }
+              }
+            })
+            .size(10)
+            .build();
+
+          expect(result.knn?.filter?.bool?.must_not).toBeDefined();
+        });
       });
     });
   });

@@ -57,6 +57,26 @@ type Store = {
   item_count: number;
 };
 
+type ProductWithVector = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  image_url: string;
+  embedding: number[];
+};
+
+type ContentDocument = {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  published_date: string;
+  tags: string[];
+  embedding: number[];
+};
+
 describe('Real-world Usage Examples', () => {
   describe('E-commerce Product Search', () => {
     it('should build a basic product search query', () => {
@@ -1076,6 +1096,254 @@ describe('Real-world Usage Examples', () => {
 
       expect(queryResult.query?.geo_distance).toBeDefined();
       expect(agg.by_district).toBeDefined();
+    });
+  });
+
+  describe('Vector Search & Semantic Search', () => {
+    it('should build a basic semantic product search', () => {
+      // Simulated embedding vector for "wireless headphones"
+      const searchEmbedding = [0.23, 0.45, 0.67, 0.12, 0.89, 0.34, 0.56, 0.78];
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', searchEmbedding, {
+          k: 10,
+          num_candidates: 100
+        })
+        .size(10)
+        ._source(['name', 'description', 'price', 'image_url'])
+        .build();
+
+      expect(result).toMatchInlineSnapshot(`
+        {
+          "_source": [
+            "name",
+            "description",
+            "price",
+            "image_url",
+          ],
+          "knn": {
+            "field": "embedding",
+            "k": 10,
+            "num_candidates": 100,
+            "query_vector": [
+              0.23,
+              0.45,
+              0.67,
+              0.12,
+              0.89,
+              0.34,
+              0.56,
+              0.78,
+            ],
+          },
+          "size": 10,
+        }
+      `);
+    });
+
+    it('should build semantic search with category filtering', () => {
+      const queryVector = [0.1, 0.2, 0.3, 0.4, 0.5];
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', queryVector, {
+          k: 20,
+          num_candidates: 200,
+          filter: {
+            bool: {
+              must: [{ term: { category: 'electronics' } }],
+              filter: [{ range: { price: { gte: 100, lte: 1000 } } }]
+            }
+          }
+        })
+        .size(20)
+        .build();
+
+      expect(result.knn?.filter).toBeDefined();
+      expect(result.knn?.filter.bool.must).toHaveLength(1);
+      expect(result.knn?.filter.bool.filter).toHaveLength(1);
+    });
+
+    it('should build image similarity search', () => {
+      // Simulated 512-dimensional image embedding (e.g., from ResNet)
+      const imageEmbedding = new Array(512)
+        .fill(0)
+        .map((_, i) => Math.sin(i / 100));
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', imageEmbedding, {
+          k: 50,
+          num_candidates: 500,
+          similarity: 0.7,
+          boost: 1.2
+        })
+        .size(50)
+        ._source(['id', 'name', 'image_url'])
+        .build();
+
+      expect(result.knn?.query_vector).toHaveLength(512);
+      expect(result.knn?.similarity).toBe(0.7);
+      expect(result.knn?.boost).toBe(1.2);
+    });
+
+    it('should build product recommendation engine query', () => {
+      // Current product's embedding
+      const currentProductEmbedding = [0.45, 0.23, 0.67, 0.89, 0.12];
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', currentProductEmbedding, {
+          k: 10,
+          num_candidates: 100,
+          filter: {
+            bool: {
+              must_not: [{ term: { id: 'current-product-123' } }],
+              must: [{ term: { category: 'electronics' } }]
+            }
+          }
+        })
+        .size(10)
+        ._source(['id', 'name', 'price', 'image_url'])
+        .build();
+
+      expect(result.knn?.filter?.bool?.must_not).toBeDefined();
+      expect(result.size).toBe(10);
+    });
+
+    it('should build semantic document search with aggregations', () => {
+      // Search embedding for "machine learning best practices"
+      const queryEmbedding = new Array(384).fill(0).map((_, i) => i / 384);
+
+      const result = query<ContentDocument>()
+        .knn('embedding', queryEmbedding, {
+          k: 50,
+          num_candidates: 500,
+          filter: {
+            range: {
+              published_date: { gte: '2023-01-01' }
+            }
+          }
+        })
+        .aggs((agg) =>
+          agg
+            .terms('top_authors', 'author', { size: 10 })
+            .terms('popular_tags', 'tags', { size: 20 })
+        )
+        .size(20)
+        .build();
+
+      expect(result.knn?.query_vector).toHaveLength(384);
+      expect(result.aggs?.top_authors).toBeDefined();
+      expect(result.aggs?.popular_tags).toBeDefined();
+    });
+
+    it('should build multilingual semantic search', () => {
+      // Embedding from multilingual model (e.g., multilingual-E5)
+      const multilingualEmbedding = new Array(768)
+        .fill(0)
+        .map(() => Math.random());
+
+      const result = query<ContentDocument>()
+        .knn('embedding', multilingualEmbedding, {
+          k: 30,
+          num_candidates: 300,
+          boost: 1.5
+        })
+        .size(30)
+        ._source(['title', 'content', 'author'])
+        .highlight(['title', 'content'], {
+          fragment_size: 150,
+          number_of_fragments: 3
+        })
+        .build();
+
+      expect(result.knn?.query_vector).toHaveLength(768);
+      expect(result.highlight).toBeDefined();
+    });
+
+    it('should build OpenAI embedding search (1536 dimensions)', () => {
+      // OpenAI text-embedding-ada-002 produces 1536-dimensional vectors
+      const openaiEmbedding = new Array(1536).fill(0).map(() => Math.random());
+
+      const result = query<ContentDocument>()
+        .knn('embedding', openaiEmbedding, {
+          k: 10,
+          num_candidates: 100,
+          filter: {
+            bool: {
+              must: [{ term: { author: 'john-doe' } }]
+            }
+          }
+        })
+        .size(10)
+        .from(0)
+        .build();
+
+      expect(result.knn?.query_vector).toHaveLength(1536);
+      expect(result.knn?.filter).toBeDefined();
+    });
+
+    it('should build hybrid semantic + price ranking', () => {
+      const productEmbedding = [0.5, 0.3, 0.8, 0.2, 0.6];
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', productEmbedding, {
+          k: 100,
+          num_candidates: 1000,
+          filter: {
+            bool: {
+              filter: [
+                { range: { price: { gte: 50 } } },
+                { term: { category: 'electronics' } }
+              ]
+            }
+          }
+        })
+        .size(20)
+        .sort('price', 'asc')
+        ._source(['id', 'name', 'price'])
+        .build();
+
+      expect(result.knn?.filter).toBeDefined();
+      expect(result.sort).toEqual([{ price: 'asc' }]);
+    });
+
+    it('should build semantic search with quality thresholding', () => {
+      const queryVector = [0.7, 0.2, 0.5, 0.9, 0.1];
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', queryVector, {
+          k: 20,
+          num_candidates: 200,
+          similarity: 0.85 // Only return highly similar results
+        })
+        .size(20)
+        .minScore(0.8) // Additional relevance threshold
+        .build();
+
+      expect(result.knn?.similarity).toBe(0.85);
+      expect(result.min_score).toBe(0.8);
+    });
+
+    it('should build "more like this" recommendation query', () => {
+      // Reference item's embedding
+      const referenceEmbedding = [0.33, 0.66, 0.22, 0.88, 0.44];
+      const excludeIds = ['ref-item-1', 'ref-item-2', 'ref-item-3'];
+
+      const result = query<ProductWithVector>()
+        .knn('embedding', referenceEmbedding, {
+          k: 15,
+          num_candidates: 150,
+          filter: {
+            bool: {
+              must_not: excludeIds.map((id) => ({ term: { id } }))
+            }
+          }
+        })
+        .size(15)
+        ._source(['id', 'name', 'description', 'price', 'category'])
+        .build();
+
+      expect(result.knn?.filter?.bool?.must_not).toHaveLength(3);
+      expect(result.size).toBe(15);
     });
   });
 });

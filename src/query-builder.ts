@@ -35,6 +35,20 @@ const createClauseBuilder = <T>(): ClauseBuilder<T> => ({
     return { fuzzy: { [field]: { value, ...options } } };
   },
   ids: (values) => ({ ids: { values } }),
+  knn: (field, queryVector, options) => {
+    const { k, num_candidates, filter, boost, similarity } = options;
+    return {
+      knn: {
+        field: String(field),
+        query_vector: queryVector,
+        k,
+        num_candidates,
+        ...(filter ? { filter } : {}),
+        ...(boost ? { boost } : {}),
+        ...(similarity !== undefined ? { similarity } : {})
+      }
+    };
+  },
   when: (condition, thenFn, elseFn) => {
     if (condition) {
       return thenFn(createClauseBuilder());
@@ -178,6 +192,22 @@ export const createQueryBuilder = <T>(
           query: nestedQuery,
           ...(options && Object.keys(options).length > 0 ? options : {})
         }
+      }
+    });
+  },
+
+  knn: (field, queryVector, options) => {
+    const { k, num_candidates, filter, boost, similarity } = options;
+    return createQueryBuilder<T>({
+      ...state,
+      knn: {
+        field: String(field),
+        query_vector: queryVector,
+        k,
+        num_candidates,
+        ...(filter ? { filter } : {}),
+        ...(boost ? { boost } : {}),
+        ...(similarity !== undefined ? { similarity } : {})
       }
     });
   },

@@ -78,6 +78,10 @@ const response = await client.search({ index: 'products', ...q });
 - `geoBoundingBox(field, options)` - Bounding box search
 - `geoPolygon(field, options)` - Polygon search
 
+#### Vector Search (KNN)
+
+- `knn(field, queryVector, options)` - K-nearest neighbors semantic search
+
 #### Advanced Queries
 
 - `nested(path, fn, options?)` - Nested object queries
@@ -181,6 +185,124 @@ const standaloneAgg = aggregations<Product>()
        .cardinality('unique_categories', 'category')
   )
   .build();
+```
+
+### Vector Search & Semantic Search
+
+**Requires Elasticsearch 8.0+**
+
+KNN (k-nearest neighbors) queries enable semantic search using vector embeddings from machine learning models.
+
+```typescript
+import { query } from 'elastiq';
+
+type Product = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: string;
+  embedding: number[]; // Vector field
+};
+
+// Basic semantic search
+const searchEmbedding = [0.23, 0.45, 0.67, 0.12, 0.89]; // From your ML model
+
+const result = query<Product>()
+  .knn('embedding', searchEmbedding, {
+    k: 10,              // Return top 10 nearest neighbors
+    num_candidates: 100 // Consider 100 candidates per shard
+  })
+  .size(10)
+  .build();
+
+// Semantic search with filters
+const filtered = query<Product>()
+  .knn('embedding', searchEmbedding, {
+    k: 20,
+    num_candidates: 200,
+    filter: {
+      bool: {
+        must: [{ term: { category: 'electronics' } }],
+        filter: [{ range: { price: { gte: 100, lte: 1000 } } }]
+      }
+    },
+    boost: 1.2,       // Boost relevance scores
+    similarity: 0.7   // Minimum similarity threshold
+  })
+  .size(20)
+  .build();
+
+// Product recommendations ("more like this")
+const recommendations = query<Product>()
+  .knn('embedding', currentProductEmbedding, {
+    k: 10,
+    num_candidates: 100,
+    filter: {
+      bool: {
+        must_not: [{ term: { id: 'current-product-id' } }],
+        must: [{ term: { category: 'electronics' } }]
+      }
+    }
+  })
+  .size(10)
+  ._source(['id', 'name', 'price'])
+  .build();
+
+// Image similarity search
+const imageEmbedding = new Array(512).fill(0); // 512-dim vector from ResNet
+
+const imageSimilarity = query<Product>()
+  .knn('embedding', imageEmbedding, {
+    k: 50,
+    num_candidates: 500,
+    similarity: 0.8 // High similarity threshold
+  })
+  .size(50)
+  .build();
+
+// Hybrid search with aggregations
+const hybridSearch = query<Product>()
+  .knn('embedding', searchEmbedding, {
+    k: 100,
+    num_candidates: 1000,
+    filter: { term: { category: 'electronics' } }
+  })
+  .aggs(agg =>
+    agg
+      .terms('categories', 'category', { size: 10 })
+      .range('price_ranges', 'price', {
+        ranges: [
+          { to: 100 },
+          { from: 100, to: 500 },
+          { from: 500 }
+        ]
+      })
+  )
+  .size(20)
+  .build();
+```
+
+**Common Vector Dimensions:**
+- **384-768**: Sentence transformers (all-MiniLM, all-mpnet)
+- **512**: Image embeddings (ResNet, ViT)
+- **1536**: OpenAI text-embedding-ada-002
+- **3072**: OpenAI text-embedding-3-large
+
+**Dense Vector Field Mapping Example:**
+```typescript
+import type { DenseVectorOptions } from 'elastiq';
+
+const mapping: DenseVectorOptions = {
+  dims: 384,
+  index: true,
+  similarity: 'cosine', // 'l2_norm', 'dot_product', or 'cosine'
+  index_options: {
+    type: 'hnsw',
+    m: 16,
+    ef_construction: 100
+  }
+};
 ```
 
 ## Examples
@@ -397,13 +519,13 @@ All queries are tested against the Elasticsearch DSL specification with 147+ pas
 - [x] Advanced patterns (regexp, constant_score)
 - [x] Sub-aggregation support
 - [x] Query + aggregations integration
-- [x] Full test coverage (147+ tests)
+- [x] KNN (k-nearest neighbors) queries for vector search
+- [x] Semantic search with vector embeddings
+- [x] Dense vector field support
+- [x] Full test coverage (230+ tests)
 
 ### Planned for Future Releases
 
-- [ ] KNN (k-nearest neighbors) queries for vector search
-- [ ] Semantic search with vector embeddings
-- [ ] Dense vector field support
 - [ ] Script queries
 - [ ] Percolate queries
 - [ ] Multi-search API
