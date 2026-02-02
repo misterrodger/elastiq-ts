@@ -1,15 +1,15 @@
-# elastiq-ts
+# elasticlink
 
-> **⚠️ Pre-Beta Status**: elastiq-ts is still in active development. APIs may change before first stable release.
+> **⚠️ Pre-Beta Status**: elasticlink is still in active development. APIs may change before first stable release.
 
-[![npm version](https://img.shields.io/npm/v/elastiq-ts.svg)](https://www.npmjs.com/package/elastiq-ts)
-[![Build Status](https://github.com/misterrodger/elastiq-ts/actions/workflows/ci.yml/badge.svg)](https://github.com/misterrodger/elastiq-ts/actions)
-[![Coverage Status](https://img.shields.io/badge/coverage-98%25-brightgreen)](https://github.com/misterrodger/elastiq-ts)
+[![npm version](https://img.shields.io/npm/v/elasticlink.svg)](https://www.npmjs.com/package/elasticlink)
+[![Build Status](https://github.com/misterrodger/elasticlink/actions/workflows/ci.yml/badge.svg)](https://github.com/misterrodger/elasticlink/actions)
+[![Coverage Status](https://img.shields.io/badge/coverage-98%25-brightgreen)](https://github.com/misterrodger/elasticlink)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 > **Type-safe, lightweight Elasticsearch query builder with a fluent, chainable API**
 
-elastiq-ts simplifies building Elasticsearch queries in TypeScript. Write type-checked queries that compile to valid Elasticsearch DSL with zero runtime overhead.
+elasticlink simplifies building Elasticsearch queries in TypeScript. Write type-checked queries that compile to valid Elasticsearch DSL with zero runtime overhead.
 
 ## Features
 
@@ -24,7 +24,7 @@ elastiq-ts simplifies building Elasticsearch queries in TypeScript. Write type-c
 ## Installation
 
 ```bash
-npm install elastiq-ts@latest
+npm install elasticlink@latest
 ```
 
 Requires Node.js 20+
@@ -32,7 +32,7 @@ Requires Node.js 20+
 ## Quick Start
 
 ```typescript
-import { query } from 'elastiq-ts';
+import { query } from 'elasticlink';
 
 type Product = {
   id: string;
@@ -156,7 +156,7 @@ query<Product>()
 Aggregations can be combined with queries or used standalone:
 
 ```typescript
-import { query, aggregations } from 'elastiq-ts';
+import { query, aggregations } from 'elasticlink';
 
 type Product = {
   category: string;
@@ -204,7 +204,7 @@ const standaloneAgg = aggregations<Product>()
 KNN (k-nearest neighbors) queries enable semantic search using vector embeddings from machine learning models.
 
 ```typescript
-import { query } from 'elastiq-ts';
+import { query } from 'elasticlink';
 
 type Product = {
   id: string;
@@ -301,7 +301,7 @@ const hybridSearch = query<Product>()
 
 **Dense Vector Field Mapping Example:**
 ```typescript
-import type { DenseVectorOptions } from 'elastiq-ts';
+import type { DenseVectorOptions } from 'elasticlink';
 
 const mapping: DenseVectorOptions = {
   dims: 384,
@@ -320,7 +320,7 @@ const mapping: DenseVectorOptions = {
 **Note:** Scripts must be enabled in Elasticsearch configuration. Use with caution as they can impact performance.
 
 ```typescript
-import { query } from 'elastiq-ts';
+import { query } from 'elasticlink';
 
 type Product = {
   id: string;
@@ -469,7 +469,7 @@ const securityAlerts = query<AlertRule>()
 Elasticsearch Suggesters provide spell-checking, phrase correction, and autocomplete functionality. Perfect for search-as-you-type experiences and fixing user typos.
 
 ```typescript
-import { query, suggest } from 'elastiq-ts';
+import { query, suggest } from 'elasticlink';
 
 type Product = {
   name: string;
@@ -595,7 +595,7 @@ const correction = suggest<Product>()
 **Completion Field Mapping:**
 
 ```typescript
-import { indexBuilder } from 'elastiq-ts';
+import { indexBuilder } from 'elasticlink';
 
 const index = indexBuilder<Product>()
   .mappings({
@@ -615,7 +615,7 @@ const index = indexBuilder<Product>()
 Batch multiple search requests in a single API call using the NDJSON format.
 
 ```typescript
-import { query, msearch } from 'elastiq-ts';
+import { query, msearch } from 'elasticlink';
 
 const laptopQuery = query<Product>()
   .match('name', 'laptop')
@@ -669,7 +669,7 @@ const array = msearch<Product>()
 Batch create, index, update, and delete operations efficiently.
 
 ```typescript
-import { bulk } from 'elastiq-ts';
+import { bulk } from 'elasticlink';
 
 type Product = {
   id: string;
@@ -765,7 +765,7 @@ const bulkOp = bulk<Product>()
 Configure index mappings, settings, and aliases declaratively.
 
 ```typescript
-import { indexBuilder } from 'elastiq-ts';
+import { indexBuilder } from 'elasticlink';
 
 type Product = {
   id: string;
@@ -1067,7 +1067,7 @@ const result = query<Restaurant>()
 
 ## TypeScript Support
 
-elastiq-ts provides excellent TypeScript support with:
+elasticlink provides excellent TypeScript support with:
 
 - **Field Autocomplete**: Type-safe field names with IntelliSense
 - **Type Validation**: Compile-time checking for query structure
@@ -1152,6 +1152,6 @@ MIT © 2026 misterrodger
 
 ## Support
 
-- 📖 [Documentation](https://github.com/misterrodger/elastiq-ts#readme)
-- 🐛 [Report Issues](https://github.com/misterrodger/elastiq-ts/issues)
-- 💬 [Discussions](https://github.com/misterrodger/elastiq-ts/discussions)
+- 📖 [Documentation](https://github.com/misterrodger/elasticlink#readme)
+- 🐛 [Report Issues](https://github.com/misterrodger/elasticlink/issues)
+- 💬 [Discussions](https://github.com/misterrodger/elasticlink/discussions)
