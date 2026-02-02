@@ -1,6 +1,6 @@
 {
   "name": "elastiq",
-  "version": "0.1.0-beta.0",
+  "version": "0.1.0-beta",
   "description": "Type-safe, lightweight Elasticsearch query builder with fluent API",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -54,16 +54,16 @@
   "devDependencies": {
     "@eslint/js": "^9.39.2",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.0.9",
-    "@typescript-eslint/eslint-plugin": "^8.53.1",
-    "@typescript-eslint/parser": "^8.53.1",
+    "@types/node": "^22",
+    "@typescript-eslint/eslint-plugin": "^8.54.0",
+    "@typescript-eslint/parser": "^8.54.0",
     "better-npm-audit": "^3.11.0",
     "eslint": "^9.39.2",
-    "globals": "^17.0.0",
+    "globals": "^17.3.0",
     "jest": "^30.2.0",
-    "prettier": "^3.8.0",
+    "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.53.1"
+    "typescript-eslint": "^8.54.0"
   }
 }

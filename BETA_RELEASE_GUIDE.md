@@ -1,60 +1,51 @@
 # elastiq Beta Release Guide
 
 **Status**: ✅ Ready for npm beta publication
-**Version**: 0.1.0-beta.0
-**Package Size**: 11.9 KB (11.9 MB when installed)
+**Version**: 0.1.0-beta
+**Package Size**: ~22 KB (gzipped)
 
 ## What's Included
 
 elastiq is a **type-safe, lightweight Elasticsearch query builder** with:
 
-- ✅ **Full V1.0 features**: 13+ core query types, boolean logic, conditional building
-- ✅ **Full V1.1 features**: 12+ aggregations, 3 geo queries, advanced patterns
-- ✅ **143+ tests passing** with good coverage
-- ✅ **Production-ready code** with TypeScript strict mode
+- ✅ **Many features implemented**: Core query types, vector search, scripts, percolate, multi-search, bulk, index management, suggestions and autocomplete, etc
+- ✅ **430+ tests passing** with 98%+ coverage
+- ✅ **Production-quality code** with TypeScript strict mode
 - ✅ **Comprehensive documentation** with examples
-- ✅ **CI/CD configured** with GitHub Actions
 - ✅ **Zero external dependencies** (lightweight)
 
 ## Publishing the Beta
 
-### Option 1: Automatic (Recommended)
-
-Push with `[beta]` in commit message to trigger GitHub Actions auto-publish:
+### Manual Publish (Recommended for First Release)
 
 ```bash
-git commit -m "chore: publish v0.1.0-beta.0 [beta]"
-git push origin main
-```
-
-Requires: NPM_TOKEN secret in GitHub repo settings
-
-### Option 2: Manual Publish
-
-```bash
-# Login to npm
+# Ensure you're logged in to npm
 npm login
+
+# Verify everything is ready
+npm run test
+npm run type-check
+npm run build
 
 # Publish as beta
 npm publish --tag beta
 
-# Verify
-npm view elastiq@0.1.0-beta.0
+# Verify publication
+npm view elastiq@0.1.0-beta
 ```
+
+This publishes with the `beta` tag, so users must explicitly install the beta version.
 
 ## Installation
 
-Beta testers can install:
+Beta users can install:
 
 ```bash
-# Latest beta (recommended)
-npm install elastiq@latest
+# Latest beta
+npm install elastiq@beta
 
 # Specific version
-npm install elastiq@0.1.0-beta.0
-
-# Add to package.json
-npm install elastiq@0.1.0-beta.0 --save-dev
+npm install elastiq@0.1.0-beta
 ```
 
 ## Quick Start for Beta Testers
@@ -66,13 +57,16 @@ type Product = {
   id: string;
   name: string;
   price: number;
+  embedding?: number[];
 };
 
-// Type-safe query building
+// Type-safe query building with vector search
 const q = query<Product>()
   .bool()
   .must(q => q.match('name', 'laptop'))
   .filter(q => q.range('price', { gte: 500, lte: 2000 }))
+  .knn('embedding', [0.1, 0.2, ...], { k: 10, num_candidates: 100 })
+  .suggest(s => s.completion('name-suggestions', 'lap', { field: 'name' }))
   .from(0)
   .size(20)
   .build();
@@ -83,42 +77,64 @@ client.search({ index: 'products', ...q });
 
 ## Beta Features
 
-### Query Types (Ready)
-- match, multiMatch, matchPhrase, matchPhrasePrefix
-- term, terms, range, exists, prefix, wildcard, fuzzy, ids
-- bool (must, filter, should, mustNot, minimumShouldMatch)
-- nested, regexp, constantScore
-- geoDistance, geoBoundingBox, geoPolygon
+### Core Query Types
 
-### Query Parameters (Ready)
-- Pagination: from, to, size
-- Sorting: sort
-- Field selection: _source
-- Performance: timeout, trackScores, trackTotalHits
-- Debugging: explain, minScore, version, seqNoPrimaryTerm
+- Full-text: match, multiMatch, matchPhrase, matchPhrasePrefix
+- Term-level: term, terms, range, exists, prefix, wildcard, fuzzy, ids
+- Boolean: must, filter, should, mustNot, minimumShouldMatch
+- Advanced: nested, regexp, constantScore
+- Geo: geoDistance, geoBoundingBox, geoPolygon
 
-### Aggregations (Ready)
+### Vector Search
+
+- KNN queries with filtering and boosting
+- Dense vector field support
+- HNSW and flat index configurations
+
+### Advanced Queries
+
+- Script queries (Painless/Expression/Mustache)
+- Script score queries for custom ranking
+- Percolate queries for reverse search
+
+### API Operations
+
+- Multi-search API for batching requests
+- Bulk operations (index, create, update, delete)
+- Index management (mappings, settings, aliases)
+
+### Suggestions
+
+- Term suggester (spelling corrections)
+- Phrase suggester (phrase corrections)
+- Completion suggester (autocomplete)
+
+### Aggregations
+
 - Bucket: terms, dateHistogram, range, histogram
 - Metric: avg, sum, min, max, cardinality, percentiles, stats, valueCount
 - Sub-aggregations with fluent chaining
 
-### Advanced Features (Ready)
+### Other Features
+
 - Conditional query building with when()
 - Highlighting with custom tags
 - Full TypeScript generics for type safety
+- Query parameters (pagination, sorting, field selection, etc.)
 
 ## Pre-release Checklist
 
-✅ Code ready
-✅ Documentation complete
-✅ Tests passing (143 tests)
-✅ Build passing
-✅ Linting passing
-✅ Package.json updated
-✅ CHANGELOG updated
-✅ CI/CD configured
-✅ Local install verified
-✅ Commit prepared
+Before publishing:
+
+- [ ] All tests passing: `npm test`
+- [ ] Coverage meets threshold: `npm run test:coverage` (98%+)
+- [ ] Type checking passes: `npm run type-check`
+- [ ] Build succeeds: `npm run build`
+- [ ] Linting passes: `npm run lint`
+- [ ] CHANGELOG.md updated
+- [ ] Version bumped in package.json
+- [ ] README.md reflects current features
+- [ ] Commit and tag created
 
 ## Feedback Channels
 
@@ -126,73 +142,41 @@ client.search({ index: 'products', ...q });
 - **Discussions**: https://github.com/misterrodger/elastiq/discussions
 - **Bugs**: Create issue with version and reproduction steps
 
-## Known Limitations (Beta)
+## What "Beta" Means
 
-1. **Node.js 16+** required (we test on 16, 18, 20)
-2. **Elasticsearch 7.0+** compatible (DSL based)
-3. **No script queries** yet (planned for v1.2)
-4. **No bulk operations** (planned for v1.2)
+This library is in **beta**, which means:
 
-## Stability
+- **The API may change** - We're gathering feedback and refining the design based on real-world usage
+- **Breaking changes are possible** - Between beta versions as we discover better patterns
+- **Use with caution** - Well-tested, but still evolving
+- **Feedback is essential** - Help shape the final API by reporting what works and what doesn't
 
-This is a beta release suitable for:
-- **Production testing** in non-critical systems
-- **API feedback** before v1.0 stable
-- **Early adoption** with version pinning
+## Version Bumping
 
-Not recommended for:
-- Critical production systems
-- Large-scale deployments without testing
-
-## Migration Path
-
-Beta users will have a smooth upgrade path:
-- v0.1.0-beta.0 → v0.1.0 (stable) - no breaking changes
-- v0.1.0 → v1.0.0 - public API finalized
-- v1.x → v2.x - future major features
-
-## Support Timeline
-
-- **Beta phase**: v0.1.0-beta.x (this)
-- **Stable v1**: v1.0.0+ (expected Q1 2026)
-- **LTS support**: v1.x (minimum 2 years)
-
-## Next Steps
-
-1. **Publish beta** (via Git push with [beta] tag or `npm publish --tag beta`)
-2. **Announce** on:
-   - GitHub releases page
-   - npm package page
-   - TypeScript/Elasticsearch communities
-3. **Gather feedback** from early adopters
-4. **Iterate** on v0.1.0-beta.1+ if needed
-5. **Release v1.0** when stable
-
-## Version Bumping for Next Betas
-
-If iterations needed before v1.0:
+For subsequent beta releases:
 
 ```bash
-# In package.json
-"version": "0.1.0-beta.1"  # For second beta
-"version": "0.1.0-beta.2"  # For third beta
-# etc.
+# In package.json, increment the beta number or minor version
+"version": "0.1.1-beta"  # For bug fixes
+"version": "0.2.0-beta"  # For new features
 
 # Publish
 npm publish --tag beta
-
-# Users always get latest with:
-npm install elastiq@latest
 ```
+
+## Next Steps After Publishing
+
+1. **Verify** the package on npm: https://www.npmjs.com/package/elastiq
+2. **Test** installation in a fresh project
+3. **Create** a GitHub release with changelog
+4. **Gather** feedback from users
+5. **Iterate** based on real-world usage
 
 ## Questions?
 
-See:
-- README.md - Feature overview and examples
-- CHANGELOG.md - What's new in v1.0 and v1.1
-- CONTRIBUTING.md - Development guide
-- Documentation in code - JSDoc comments
+This is a first public library release. The process and timeline will evolve based on feedback. See README.md and CHANGELOG.md for more detailed feature documentation.
 
 ---
 
 **Ready to release! 🚀**
+
