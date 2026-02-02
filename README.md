@@ -7,9 +7,9 @@
 [![Coverage Status](https://img.shields.io/badge/coverage-98%25-brightgreen)](https://github.com/misterrodger/elasticlink)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-> **Type-safe, lightweight Elasticsearch query builder with a fluent, chainable API**
+> **Type-safe, fluent API for Elasticsearch queries and index management**
 
-elasticlink simplifies building Elasticsearch queries in TypeScript. Write type-checked queries that compile to valid Elasticsearch DSL with zero runtime overhead.
+elasticlink simplifies building Elasticsearch queries and index management in TypeScript. Write type-checked queries that compile to valid Elasticsearch DSL with zero runtime overhead.
 
 ## Features
 
