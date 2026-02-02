@@ -33,5 +33,15 @@ export type {
   FieldMapping
 } from './index-types';
 
+// Suggester API
+export { suggest, createSuggesterBuilder } from './suggester';
+export type {
+  SuggesterBuilder,
+  SuggesterState,
+  TermSuggesterOptions,
+  PhraseSuggesterOptions,
+  CompletionSuggesterOptions
+} from './suggester-types';
+
 // Export types
 export type { KnnOptions, DenseVectorOptions } from './vector-types';

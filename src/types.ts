@@ -6,6 +6,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { AggregationBuilder, AggregationState } from './aggregation-types';
 import { KnnOptions } from './vector-types';
+import { SuggesterBuilder, SuggesterState } from './suggester-types';
 
 /**
  * Options for match query
@@ -199,6 +200,8 @@ export type QueryState<T> = {
   };
   /** Aggregations */
   aggs?: AggregationState;
+  /** Suggestions for query terms/phrases/completions */
+  suggest?: SuggesterState;
   /** Pagination offset */
   from?: number;
   /** Pagination end (deprecated, use from+size) */
@@ -400,6 +403,12 @@ export type QueryBuilder<T> = {
   /** Add aggregations */
   aggs: (
     fn: (agg: AggregationBuilder<T>) => AggregationBuilder<T>
+  ) => QueryBuilder<T>;
+
+  // Suggestions
+  /** Add query suggestions (term, phrase, completion) */
+  suggest: (
+    fn: (s: SuggesterBuilder<T>) => SuggesterBuilder<T>
   ) => QueryBuilder<T>;
 
   // Query parameters

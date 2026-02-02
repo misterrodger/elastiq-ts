@@ -1,6 +1,16 @@
+/**
+ * Query builder implementation
+ * Builds type-safe Elasticsearch queries with a fluent API
+ */
+
 import { QueryState, QueryBuilder, ClauseBuilder } from './types';
 import { createAggregationBuilder } from './aggregation-builder';
+import { createSuggesterBuilder } from './suggester';
 
+/**
+ * Creates a clause builder for constructing query clauses
+ * Used within bool query contexts (must, should, filter, must_not)
+ */
 const createClauseBuilder = <T>(): ClauseBuilder<T> => ({
   matchAll: () => ({ match_all: {} }),
   match: (field, value, options) => {
@@ -70,11 +80,18 @@ const createClauseBuilder = <T>(): ClauseBuilder<T> => ({
   }
 });
 
+/** Shared clause builder instance */
 const clauseBuilder = createClauseBuilder();
 
+/**
+ * Creates a query builder with immutable state
+ * @param state - Current query state (optional)
+ * @returns QueryBuilder instance with fluent API
+ */
 export const createQueryBuilder = <T>(
   state: QueryState<T> = {}
 ): QueryBuilder<T> => ({
+  // Boolean query methods
   bool: () => createQueryBuilder<T>({ ...state, query: { bool: {} } }),
 
   must: (builderFn) => {
@@ -120,6 +137,7 @@ export const createQueryBuilder = <T>(
     });
   },
 
+  // Full-text query methods
   matchAll: () => createQueryBuilder<T>({ ...state, query: { match_all: {} } }),
   match: (field, value, options) => {
     if (!options || Object.keys(options).length === 0) {
@@ -145,6 +163,8 @@ export const createQueryBuilder = <T>(
       query: { multi_match: { fields, query, ...options } }
     });
   },
+
+  // Term-level query methods
   term: (field, value) =>
     createQueryBuilder<T>({ ...state, query: { term: { [field]: value } } }),
   matchPhrase: (field, value) =>
@@ -194,6 +214,7 @@ export const createQueryBuilder = <T>(
       query: { ids: { values } }
     }),
 
+  // Nested query
   nested: (path, fn, options) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const nestedQuery = fn(createClauseBuilder<any>());
@@ -209,6 +230,7 @@ export const createQueryBuilder = <T>(
     });
   },
 
+  // Vector search
   knn: (field, queryVector, options) => {
     const { k, num_candidates, filter, boost, similarity } = options;
     return createQueryBuilder<T>({
@@ -225,6 +247,7 @@ export const createQueryBuilder = <T>(
     });
   },
 
+  // Script queries
   script: (options) => {
     const { source, lang = 'painless', params, boost } = options;
     return createQueryBuilder<T>({
@@ -275,6 +298,7 @@ export const createQueryBuilder = <T>(
     });
   },
 
+  // Conditional building
   when: (condition, thenFn, elseFn) => {
     if (condition) {
       return thenFn(createQueryBuilder<T>(state));
@@ -285,7 +309,7 @@ export const createQueryBuilder = <T>(
   range: (field, conditions) =>
     createQueryBuilder({ ...state, query: { range: { [field]: conditions } } }),
 
-  // Sort implementation
+  // Sorting
   sort: (field, direction = 'asc') => {
     const existing = state.sort || [];
     return createQueryBuilder({
@@ -297,7 +321,7 @@ export const createQueryBuilder = <T>(
     });
   },
 
-  // Pagination & source
+  // Pagination and source filtering
   from: (from) => createQueryBuilder({ ...state, from }),
   to: (to) => createQueryBuilder({ ...state, to }),
   size: (size) => createQueryBuilder({ ...state, size }),
@@ -390,12 +414,21 @@ export const createQueryBuilder = <T>(
     });
   },
 
+  // Aggregations
   aggs: (fn) => {
     const aggBuilder = createAggregationBuilder<T>();
     const builtAggs = fn(aggBuilder).build();
     return createQueryBuilder({ ...state, aggs: builtAggs });
   },
 
+  // Suggestions
+  suggest: (fn) => {
+    const suggesterBuilder = createSuggesterBuilder<T>();
+    const builtSuggestions = fn(suggesterBuilder).build();
+    return createQueryBuilder({ ...state, suggest: builtSuggestions.suggest });
+  },
+
+  // Build final query
   build: () => {
     const { _includeQuery, ...rest } = state;
     if (_includeQuery === false) {

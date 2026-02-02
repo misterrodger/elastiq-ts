@@ -16,8 +16,8 @@ elastiq simplifies building Elasticsearch queries in TypeScript. Write type-chec
 - ✨ **Type-Safe**: Full TypeScript generics for field autocomplete and type checking
 - 🔗 **Fluent API**: Chainable query builder with intuitive method names
 - 🎯 **Zero Runtime Overhead**: Compiles directly to Elasticsearch DSL objects
-- 🧪 **Well-Tested**: 388+ passing tests with 98%+ coverage
-- 📦 **Lightweight**: ~20KB uncompressed, no external dependencies
+- 🧪 **Well-Tested**: 430+ passing tests with 98%+ coverage
+- 📦 **Lightweight**: ~22KB uncompressed, no external dependencies
 - 🎓 **Great DX**: Excellent IntelliSense and error messages
 - 🚀 **Ready to Use**: Core query features working and tested
 
@@ -90,6 +90,13 @@ const response = await client.search({ index: 'products', ...q });
 - `script(options)` - Script-based filtering
 - `scriptScore(query, script, options?)` - Custom scoring with scripts
 - `percolate(options)` - Match documents against stored queries
+
+#### Suggestions & Autocomplete
+
+- `suggest(fn)` - Add query suggestions (term, phrase, completion)
+- `term(name, text, options)` - Term-level spell checking
+- `phrase(name, text, options)` - Phrase-level corrections
+- `completion(name, prefix, options)` - Fast autocomplete
 
 ### Boolean Logic
 
@@ -456,6 +463,152 @@ const securityAlerts = query<AlertRule>()
 - **Content Classification:** Categorize documents in real-time
 - **Saved Searches:** Notify users when new content matches their searches
 - **Monitoring:** Trigger actions based on metric thresholds
+
+### Query Suggestions & Autocomplete
+
+Elasticsearch Suggesters provide spell-checking, phrase correction, and autocomplete functionality. Perfect for search-as-you-type experiences and fixing user typos.
+
+```typescript
+import { query, suggest } from 'elastiq';
+
+type Product = {
+  name: string;
+  description: string;
+  suggest_field: string; // Must be type: completion
+};
+
+// Term suggester - Fix typos in individual terms
+const termSuggestions = suggest<Product>()
+  .term('name-suggestions', 'laptpo', {
+    field: 'name',
+    size: 5,
+    suggest_mode: 'popular', // 'missing' | 'popular' | 'always'
+    string_distance: 'levenshtein',
+    max_edits: 2
+  })
+  .build();
+
+// Phrase suggester - Fix entire phrases
+const phraseSuggestions = suggest<Product>()
+  .phrase('description-suggestions', 'powerfull laptop', {
+    field: 'description',
+    size: 3,
+    confidence: 2.0,
+    max_errors: 1,
+    pre_tag: '<em>',
+    post_tag: '</em>',
+    direct_generator: [
+      {
+        field: 'description',
+        suggest_mode: 'always',
+        max_edits: 2,
+        min_word_length: 3
+      }
+    ]
+  })
+  .build();
+
+// Completion suggester - Fast autocomplete
+const autocomplete = suggest<Product>()
+  .completion('autocomplete', 'lap', {
+    field: 'suggest_field',
+    size: 10,
+    skip_duplicates: true,
+    fuzzy: {
+      fuzziness: 'AUTO',
+      transpositions: true,
+      min_length: 3,
+      prefix_length: 1
+    }
+  })
+  .build();
+
+// Combine with query - Search with autocomplete
+const searchWithSuggestions = query<Product>()
+  .match('name', 'laptpo')
+  .suggest((s) =>
+    s.term('spelling-correction', 'laptpo', {
+      field: 'name',
+      size: 3,
+      suggest_mode: 'popular'
+    })
+  )
+  .size(20)
+  .build();
+
+// Multiple suggesters
+const multiSuggest = suggest<Product>()
+  .term('name-term', 'laptpo', { field: 'name', size: 3 })
+  .completion('name-complete', 'lap', { field: 'suggest_field', size: 5 })
+  .build();
+
+// Search-as-you-type with context filtering
+const contextual = query<Product>()
+  .bool()
+  .filter((q) => q.term('category', 'electronics'))
+  .suggest((s) =>
+    s.completion('product-autocomplete', 'lapt', {
+      field: 'suggest_field',
+      size: 10,
+      contexts: {
+        category: 'electronics'
+      },
+      fuzzy: {
+        fuzziness: 'AUTO'
+      }
+    })
+  )
+  .size(0) // Only want suggestions, not search results
+  .build();
+
+// Phrase correction with highlighting
+const correction = suggest<Product>()
+  .phrase('phrase-fix', 'powerfull gaming laptop', {
+    field: 'description',
+    size: 3,
+    confidence: 1.5,
+    pre_tag: '<strong>',
+    post_tag: '</strong>',
+    collate: {
+      query: {
+        source: { match: { description: '{{suggestion}}' } }
+      },
+      prune: true
+    }
+  })
+  .build();
+```
+
+**Suggester Types:**
+
+- **Term:** Suggests corrections for individual terms based on edit distance
+- **Phrase:** Suggests corrections for entire phrases using n-gram language models
+- **Completion:** Fast prefix-based autocomplete (requires `completion` field type)
+
+**Common Use Cases:**
+
+- **Autocomplete:** Search-as-you-type suggestions for product names, categories
+- **Spell Check:** Fix typos in search queries ("laptpo" → "laptop")
+- **Did You Mean:** Suggest alternative queries when searches return few results
+- **Phrase Correction:** Fix grammatical errors in multi-word queries
+
+**Completion Field Mapping:**
+
+```typescript
+import { indexBuilder } from 'elastiq';
+
+const index = indexBuilder<Product>()
+  .mappings({
+    properties: {
+      suggest_field: {
+        type: 'completion',
+        analyzer: 'simple',
+        search_analyzer: 'simple'
+      }
+    }
+  })
+  .build();
+```
 
 ### Multi-Search API
 
